@@ -75,16 +75,16 @@ export const MahrCalculator: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="text-center mb-10">
-        <h2 className="text-3xl font-serif font-bold text-slate-800 mb-2">Authentic Mahr Calculator</h2>
-        <p className="text-slate-600">Determining mahr based on contemporary silver market valuations</p>
+        <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">Authentic Mahr Calculator</h2>
+        <p className="text-slate-600 dark:text-slate-400">Determining mahr based on contemporary silver market valuations</p>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 mb-10 border border-slate-100">
-        <div className="flex items-start gap-4 p-5 bg-blue-50 border border-blue-100 rounded-2xl mb-8">
-          <Info className="w-6 h-6 text-blue-600 shrink-0 mt-1" />
+      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-6 md:p-8 mb-10 border border-slate-100 dark:border-slate-700">
+        <div className="flex items-start gap-4 p-5 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 rounded-2xl mb-8">
+          <Info className="w-6 h-6 text-blue-600 dark:text-blue-400 shrink-0 mt-1" />
           <div className="text-sm">
-            <h4 className="font-bold text-blue-900 mb-1">Market Valuation Help</h4>
-            <p className="text-blue-800 leading-relaxed">
+            <h4 className="font-bold text-blue-900 dark:text-blue-200 mb-1">Market Valuation Help</h4>
+            <p className="text-blue-800 dark:text-blue-300 leading-relaxed">
               Islamic Mahr traditions are historically tied to the weight of Silver Dirhams. 
               Click the "Update Live" button to fetch current market rates via Google Search.
             </p>
@@ -93,11 +93,11 @@ export const MahrCalculator: React.FC = () => {
 
         <div className="grid md:grid-cols-3 gap-6 items-end">
           <div className="space-y-4">
-            <label className="block text-sm font-bold text-slate-700">Currency</label>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Currency</label>
             <select
               value={selectedCurrency.code}
               onChange={(e) => handleCurrencyChange(e.target.value)}
-              className="w-full px-4 py-4 bg-slate-50 border-2 border-transparent focus:border-emerald-400 focus:bg-white rounded-2xl transition-all outline-none font-bold text-slate-800"
+              className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-600 rounded-2xl transition-all outline-none font-bold text-slate-800 dark:text-white"
             >
               {CURRENCIES.map(c => (
                 <option key={c.code} value={c.code}>{c.symbol} {c.code} - {c.name}</option>
@@ -105,9 +105,9 @@ export const MahrCalculator: React.FC = () => {
             </select>
           </div>
           <div className="space-y-4">
-            <label className="block text-sm font-bold text-slate-700 flex justify-between">
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 flex justify-between">
               <span>Price Per Gram ({selectedCurrency.code})</span>
-              {lastUpdated && <span className="text-[10px] text-emerald-600 uppercase">Updated: {lastUpdated}</span>}
+              {lastUpdated && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase">Updated: {lastUpdated}</span>}
             </label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">{selectedCurrency.symbol}</span>
@@ -119,7 +119,7 @@ export const MahrCalculator: React.FC = () => {
                   setSilverPricePerGram(parseFloat(e.target.value) || 0);
                   setLastUpdated(null);
                 }}
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-emerald-400 focus:bg-white rounded-2xl transition-all outline-none font-bold text-slate-800 text-xl"
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-600 rounded-2xl transition-all outline-none font-bold text-slate-800 dark:text-white text-xl"
               />
             </div>
           </div>
@@ -130,8 +130,8 @@ export const MahrCalculator: React.FC = () => {
               disabled={isFetching}
               className={`w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] ${
                 isFetching 
-                ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'
+                ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 cursor-not-allowed' 
+                : 'bg-slate-900 dark:bg-emerald-600 text-white hover:bg-slate-800 dark:hover:bg-emerald-500 shadow-slate-200 dark:shadow-emerald-900/30'
               }`}
             >
               <RefreshIcon className={`w-5 h-5 ${isFetching ? 'animate-spin' : ''}`} />
@@ -141,17 +141,17 @@ export const MahrCalculator: React.FC = () => {
         </div>
 
         {fetchError && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-700 text-sm">
+          <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 rounded-2xl text-red-700 dark:text-red-300 text-sm">
             {fetchError}
           </div>
         )}
 
         {sources.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-2">
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-top-2">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Data Sources:</p>
             <div className="flex flex-wrap gap-2">
               {sources.map((s, idx) => (
-                <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-600 hover:text-emerald-600 transition-colors">
+                <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                   {s.title}
                 </a>
               ))}
@@ -164,7 +164,7 @@ export const MahrCalculator: React.FC = () => {
         {MAHR_TYPES.map(mahr => {
           const value = (mahr.grams * silverPricePerGram).toFixed(2);
           return (
-            <div key={mahr.id} className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden group hover:shadow-2xl transition-all">
+            <div key={mahr.id} className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700 overflow-hidden group hover:shadow-2xl transition-all">
               <div className={`bg-gradient-to-br ${mahr.color} p-6 text-white`}>
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="text-xl font-bold">{mahr.name}</h3>
@@ -173,14 +173,14 @@ export const MahrCalculator: React.FC = () => {
                 <p className="text-xs font-medium opacity-80 uppercase tracking-widest">{mahr.arabicName}</p>
               </div>
               <div className="p-6">
-                <p className="text-3xl font-black text-slate-800 mb-4">{selectedCurrency.symbol}{parseFloat(value).toLocaleString()}</p>
-                <div className={`${mahr.bgColor} ${mahr.textColor} rounded-2xl p-4 text-xs font-semibold mb-6 min-h-[80px]`}>
+                <p className="text-3xl font-black text-slate-800 dark:text-white mb-4">{selectedCurrency.symbol}{parseFloat(value).toLocaleString()}</p>
+                <div className={`${mahr.bgColor} dark:bg-opacity-20 ${mahr.textColor} rounded-2xl p-4 text-xs font-semibold mb-6 min-h-[80px]`}>
                   {mahr.description}
                   <div className="mt-2 text-[10px] opacity-70">Weight: {mahr.grams}g Silver</div>
                 </div>
                 <button 
                   onClick={() => setSelectedMahrInfo(mahr)}
-                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-slate-100 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   View Details <ChevronRight className="w-4 h-4" />
                 </button>
@@ -190,7 +190,7 @@ export const MahrCalculator: React.FC = () => {
         })}
       </div>
 
-      <div className="bg-slate-900 rounded-[2.5rem] p-8 md:p-12 text-white relative overflow-hidden">
+      <div className="bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] p-8 md:p-12 text-white relative overflow-hidden border dark:border-slate-700">
         <div className="relative z-10 max-w-2xl">
           <h3 className="text-2xl font-serif font-bold mb-6">Mahr Principles in Islam</h3>
           <div className="space-y-6 text-slate-300 text-sm leading-relaxed">
@@ -210,28 +210,28 @@ export const MahrCalculator: React.FC = () => {
 
       {selectedMahrInfo && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedMahrInfo(null)}>
-          <div className="bg-white rounded-[2rem] p-8 max-w-lg w-full shadow-2xl animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-[2rem] p-8 max-w-lg w-full shadow-2xl animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-6">
               <div>
-                <h3 className="text-2xl font-serif font-bold text-slate-800">{selectedMahrInfo.name}</h3>
-                <p className="text-emerald-600 font-medium">{selectedMahrInfo.arabicName}</p>
+                <h3 className="text-2xl font-serif font-bold text-slate-800 dark:text-white">{selectedMahrInfo.name}</h3>
+                <p className="text-emerald-600 dark:text-emerald-400 font-medium">{selectedMahrInfo.arabicName}</p>
               </div>
-              <button onClick={() => setSelectedMahrInfo(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+              <button onClick={() => setSelectedMahrInfo(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
                 <X className="w-6 h-6 text-slate-400" />
               </button>
             </div>
             <div className="space-y-4 mb-8">
-              <div className="bg-slate-50 p-4 rounded-2xl text-slate-700 text-sm leading-relaxed border border-slate-100">
+              <div className="bg-slate-50 dark:bg-slate-700 p-4 rounded-2xl text-slate-700 dark:text-slate-200 text-sm leading-relaxed border border-slate-100 dark:border-slate-600">
                 {selectedMahrInfo.details}
               </div>
-              <div className="flex justify-between items-center px-4 py-3 bg-emerald-50 rounded-xl">
-                <span className="text-xs font-bold text-emerald-800 uppercase">Calculated Weight</span>
-                <span className="font-mono font-bold text-emerald-900">{selectedMahrInfo.grams}g Silver</span>
+              <div className="flex justify-between items-center px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl">
+                <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase">Calculated Weight</span>
+                <span className="font-mono font-bold text-emerald-900 dark:text-emerald-200">{selectedMahrInfo.grams}g Silver</span>
               </div>
             </div>
             <button 
               onClick={() => setSelectedMahrInfo(null)}
-              className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-colors"
+              className="w-full bg-slate-900 dark:bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 dark:hover:bg-emerald-500 transition-colors"
             >
               Understand and Close
             </button>

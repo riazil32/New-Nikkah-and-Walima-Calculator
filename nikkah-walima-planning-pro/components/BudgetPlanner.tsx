@@ -144,19 +144,19 @@ export const BudgetPlanner: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       <div className="text-center mb-10">
-        <h2 className="text-3xl font-serif font-bold text-slate-800 mb-2">Wedding Budget Architect</h2>
-        <p className="text-slate-600 italic">"The most blessed wedding is the one with the least expenses."</p>
+        <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">Wedding Budget Architect</h2>
+        <p className="text-slate-600 dark:text-slate-400 italic">"The most blessed wedding is the one with the least expenses."</p>
       </div>
 
       {/* Budget & Guest Input */}
-      <div className="bg-white rounded-3xl shadow-xl p-6 md:p-10 mb-8 border border-slate-100">
+      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-6 md:p-10 mb-8 border border-slate-100 dark:border-slate-700">
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-3">Currency</label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Currency</label>
             <select
               value={currencyCode}
               onChange={(e) => setCurrencyCode(e.target.value)}
-              className="w-full px-4 py-4 bg-slate-50 border-2 border-transparent focus:border-emerald-400 focus:bg-white rounded-2xl transition-all outline-none font-semibold text-slate-800"
+              className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-600 rounded-2xl transition-all outline-none font-semibold text-slate-800 dark:text-white"
             >
               {CURRENCIES.map(c => (
                 <option key={c.code} value={c.code}>{c.symbol} {c.code} - {c.name}</option>
@@ -164,7 +164,7 @@ export const BudgetPlanner: React.FC = () => {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-3">Total Budget</label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Total Budget</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl">{selectedCurrency.symbol}</span>
               <input 
@@ -173,15 +173,15 @@ export const BudgetPlanner: React.FC = () => {
                 value={totalBudget} 
                 onChange={(e) => setTotalBudget(e.target.value)} 
                 placeholder="25,000" 
-                className={`w-full pl-12 pr-4 py-4 bg-slate-50 border-2 focus:bg-white rounded-2xl transition-all outline-none text-xl font-semibold text-slate-800 ${
+                className={`w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-700 border-2 focus:bg-white dark:focus:bg-slate-600 rounded-2xl transition-all outline-none text-xl font-semibold text-slate-800 dark:text-white ${
                   budgetError ? 'border-red-300 focus:border-red-400' : 'border-transparent focus:border-emerald-400'
                 }`}
               />
             </div>
-            {budgetError && <p className="text-red-500 text-xs mt-2 font-medium">{budgetError}</p>}
+            {budgetError && <p className="text-red-500 dark:text-red-400 text-xs mt-2 font-medium">{budgetError}</p>}
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-3">Expected Guests</label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Expected Guests</label>
             <div className="relative">
               <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-6 h-6" />
               <input 
@@ -191,12 +191,12 @@ export const BudgetPlanner: React.FC = () => {
                 value={guestCount} 
                 onChange={(e) => setGuestCount(e.target.value)} 
                 placeholder="200" 
-                className={`w-full pl-12 pr-4 py-4 bg-slate-50 border-2 focus:bg-white rounded-2xl transition-all outline-none text-xl font-semibold text-slate-800 ${
+                className={`w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-700 border-2 focus:bg-white dark:focus:bg-slate-600 rounded-2xl transition-all outline-none text-xl font-semibold text-slate-800 dark:text-white ${
                   guestError ? 'border-red-300 focus:border-red-400' : 'border-transparent focus:border-emerald-400'
                 }`}
               />
             </div>
-            {guestError && <p className="text-red-500 text-xs mt-2 font-medium">{guestError}</p>}
+            {guestError && <p className="text-red-500 dark:text-red-400 text-xs mt-2 font-medium">{guestError}</p>}
           </div>
         </div>
 
@@ -230,10 +230,10 @@ export const BudgetPlanner: React.FC = () => {
         {/* Category Sliders */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Budget Allocation</h3>
+            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Budget Allocation</h3>
             <button 
               onClick={handleResetDefaults}
-              className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+              className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
             >
               Reset to Defaults
             </button>
@@ -246,26 +246,26 @@ export const BudgetPlanner: React.FC = () => {
               const isEditing = editingCategory === cat.key;
               
               return (
-                <div key={cat.key} className="bg-slate-50 rounded-2xl p-4">
+                <div key={cat.key} className="bg-slate-50 dark:bg-slate-700/50 rounded-2xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xl">{cat.icon}</span>
-                    <span className="font-semibold text-slate-700 text-sm truncate">{cat.name}</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm truncate">{cat.name}</span>
                   </div>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2 md:gap-1">
                       <button
                         onClick={() => handlePercentageChange(cat.key, Math.floor(percentage) - 1)}
-                        className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-600 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
+                        className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 active:bg-slate-400 text-slate-600 dark:text-slate-200 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
                         disabled={percentage <= 0}
                       >
                         −
                       </button>
-                      <span className="text-sm font-bold text-emerald-600 w-14 md:w-12 text-center">
+                      <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 w-14 md:w-12 text-center">
                         {Number.isInteger(percentage) ? percentage : percentage.toFixed(1)}%
                       </span>
                       <button
                         onClick={() => handlePercentageChange(cat.key, Math.floor(percentage) + 1)}
-                        className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-600 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
+                        className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 active:bg-slate-400 text-slate-600 dark:text-slate-200 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
                         disabled={percentage >= 100}
                       >
                         +
@@ -293,7 +293,7 @@ export const BudgetPlanner: React.FC = () => {
                           setEditingCategory(null);
                           setEditingValue('');
                         }}
-                        className="w-24 pl-5 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-right font-semibold text-slate-700 text-sm focus:outline-none focus:border-emerald-400"
+                        className="w-24 pl-5 pr-2 py-1.5 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-right font-semibold text-slate-700 dark:text-white text-sm focus:outline-none focus:border-emerald-400"
                       />
                     </div>
                   </div>
@@ -304,7 +304,7 @@ export const BudgetPlanner: React.FC = () => {
                     max="100"
                     value={percentage}
                     onChange={(e) => handlePercentageChange(cat.key, parseInt(e.target.value))}
-                    className="hidden md:block w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                    className="hidden md:block w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                   />
                 </div>
               );
@@ -315,15 +315,15 @@ export const BudgetPlanner: React.FC = () => {
         {/* Total Summary */}
         <div className={`rounded-2xl p-4 md:p-6 mb-6 transition-all ${
           isOverBudget 
-            ? 'bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 md:shadow-lg md:shadow-red-100' 
-            : 'bg-emerald-50 border-2 border-emerald-200'
+            ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 border-2 border-red-300 dark:border-red-700 md:shadow-lg md:shadow-red-100 dark:md:shadow-red-900/30' 
+            : 'bg-emerald-50 dark:bg-emerald-900/30 border-2 border-emerald-200 dark:border-emerald-700'
         }`}>
           <div className="flex justify-between items-center">
             <div>
-              <p className={`text-sm font-semibold ${isOverBudget ? 'text-red-600' : 'text-emerald-600'}`}>
+              <p className={`text-sm font-semibold ${isOverBudget ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                 Total Allocated
               </p>
-              <p className={`text-2xl md:text-3xl font-bold ${isOverBudget ? 'text-red-700' : 'text-emerald-700'}`}>
+              <p className={`text-2xl md:text-3xl font-bold ${isOverBudget ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
                 {Number.isInteger(totalPercentage) ? totalPercentage : totalPercentage.toFixed(1)}% ({selectedCurrency.symbol}{Math.round(totalAllocated).toLocaleString()})
               </p>
             </div>
@@ -331,18 +331,18 @@ export const BudgetPlanner: React.FC = () => {
               <div className="text-right">
                 <div className="hidden md:flex items-center gap-2 justify-end mb-1">
                   <span className="text-xl">⚠️</span>
-                  <p className="text-sm font-bold text-red-600 uppercase tracking-wide">Over Budget</p>
+                  <p className="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">Over Budget</p>
                 </div>
-                <p className="text-sm font-semibold text-red-600 md:hidden">Over budget by</p>
-                <p className="text-lg md:text-2xl font-black text-red-700">
+                <p className="text-sm font-semibold text-red-600 dark:text-red-400 md:hidden">Over budget by</p>
+                <p className="text-lg md:text-2xl font-black text-red-700 dark:text-red-300">
                   +{selectedCurrency.symbol}{Math.round(totalAllocated - budget).toLocaleString()}
                 </p>
               </div>
             )}
             {!isOverBudget && totalPercentage < 100 && (
               <div className="text-right">
-                <p className="text-sm font-semibold text-emerald-600">Remaining</p>
-                <p className="text-lg font-bold text-emerald-700">
+                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Remaining</p>
+                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
                   {Number.isInteger(100 - totalPercentage) ? (100 - totalPercentage) : (100 - totalPercentage).toFixed(1)}% ({selectedCurrency.symbol}{Math.round(budget - totalAllocated).toLocaleString()})
                 </p>
               </div>
@@ -355,8 +355,8 @@ export const BudgetPlanner: React.FC = () => {
           disabled={!hasValidInput}
           className={`w-full py-5 rounded-2xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] ${
             hasValidInput 
-              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200' 
-              : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200 dark:shadow-emerald-900/30' 
+              : 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed shadow-none'
           }`}
         >
           {isOverBudget ? 'Reduce allocation to continue' : 'Generate Budget Breakdown'}
@@ -408,27 +408,27 @@ export const BudgetPlanner: React.FC = () => {
 
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-3xl p-8 shadow-md border border-slate-100">
-              <p className="text-slate-500 text-sm font-medium mb-1">Total Budget</p>
-              <h4 className="text-3xl font-bold text-slate-800">{selectedCurrency.symbol}{budget.toLocaleString()}</h4>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-md border border-slate-100 dark:border-slate-700">
+              <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Total Budget</p>
+              <h4 className="text-3xl font-bold text-slate-800 dark:text-white">{selectedCurrency.symbol}{budget.toLocaleString()}</h4>
             </div>
-            <div className="bg-white rounded-3xl p-8 shadow-md border border-slate-100">
-              <p className="text-slate-500 text-sm font-medium mb-1">Guest Count</p>
-              <h4 className="text-3xl font-bold text-emerald-600">{guests} guests</h4>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-md border border-slate-100 dark:border-slate-700">
+              <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Guest Count</p>
+              <h4 className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{guests} guests</h4>
             </div>
-            <div className="bg-white rounded-3xl p-8 shadow-md border border-slate-100">
-              <p className="text-slate-500 text-sm font-medium mb-1">Cost Per Head</p>
-              <h4 className="text-3xl font-bold text-teal-600">{selectedCurrency.symbol}{(budget / guests).toFixed(2)}</h4>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-md border border-slate-100 dark:border-slate-700">
+              <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Cost Per Head</p>
+              <h4 className="text-3xl font-bold text-teal-600 dark:text-teal-400">{selectedCurrency.symbol}{(budget / guests).toFixed(2)}</h4>
             </div>
           </div>
 
           {/* Detailed Breakdown */}
-          <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100">
-            <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-slate-800">Budget Breakdown</h3>
+          <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl overflow-hidden border border-slate-100 dark:border-slate-700">
+            <div className="bg-slate-50 dark:bg-slate-700/50 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Budget Breakdown</h3>
               <button 
                 onClick={() => window.print()}
-                className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest flex items-center gap-2"
+                className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 uppercase tracking-widest flex items-center gap-2"
               >
                 <Calculator className="w-4 h-4" /> Print Plan
               </button>
@@ -440,28 +440,28 @@ export const BudgetPlanner: React.FC = () => {
                   const amount = Math.round((budget * percentage) / 100);
 
                   return (
-                    <div key={cat.key} className="bg-slate-50 rounded-2xl p-4 group hover:bg-slate-100 transition-colors">
+                    <div key={cat.key} className="bg-slate-50 dark:bg-slate-700/50 rounded-2xl p-4 group hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-3">
                           <span className="text-xl">{cat.icon}</span>
                           <div>
-                            <h4 className="font-bold text-slate-800 text-sm">{cat.name}</h4>
+                            <h4 className="font-bold text-slate-800 dark:text-white text-sm">{cat.name}</h4>
                             <p className="text-xs text-slate-400">
                               {Number.isInteger(percentage) ? percentage : percentage.toFixed(1)}%
                             </p>
                           </div>
                         </div>
-                        <span className="text-lg font-black text-slate-800">{selectedCurrency.symbol}{amount.toLocaleString()}</span>
+                        <span className="text-lg font-black text-slate-800 dark:text-white">{selectedCurrency.symbol}{amount.toLocaleString()}</span>
                       </div>
                       
-                      <div className="w-full h-2 bg-slate-200 rounded-full mb-2 overflow-hidden">
+                      <div className="w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-full mb-2 overflow-hidden">
                         <div 
                           className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-1000" 
                           style={{ width: `${Math.min(percentage, 100)}%` }}
                         />
                       </div>
                       
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         <span className="font-semibold">Tip:</span> {getRecommendation(cat.key, amount)}
                       </p>
                     </div>
