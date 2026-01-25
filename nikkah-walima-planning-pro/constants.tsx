@@ -1,6 +1,19 @@
 
 import React from 'react';
-import { BudgetCategory, MahrType } from './types';
+import { BudgetCategory, MahrType, Currency } from './types';
+
+export const CURRENCIES: Currency[] = [
+  { code: 'GBP', symbol: '£', name: 'British Pound' },
+  { code: 'USD', symbol: '$', name: 'US Dollar' },
+  { code: 'EUR', symbol: '€', name: 'Euro' },
+  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham' },
+  { code: 'SAR', symbol: '﷼', name: 'Saudi Riyal' },
+  { code: 'PKR', symbol: '₨', name: 'Pakistani Rupee' },
+  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
+  { code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit' },
+  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
+  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
+];
 
 export const BUDGET_CATEGORIES: BudgetCategory[] = [
   { key: 'venue', name: 'Venue & Nikkah Hall', icon: '🕌', color: 'bg-emerald-100 text-emerald-700', basePercentage: 0.25 },

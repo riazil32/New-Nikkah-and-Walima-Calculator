@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Users, Calculator, Sparkles } from './Icons';
-import { BUDGET_CATEGORIES } from '../constants';
+import { BUDGET_CATEGORIES, CURRENCIES } from '../constants';
 import { EnabledCategoriesState } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
@@ -9,9 +9,16 @@ export const BudgetPlanner: React.FC = () => {
   // Persisted state
   const [totalBudget, setTotalBudget] = useLocalStorage<string>('budget-totalBudget', '20000');
   const [guestCount, setGuestCount] = useLocalStorage<string>('budget-guestCount', '150');
+  const [currencyCode, setCurrencyCode] = useLocalStorage<string>('budget-currency', 'GBP');
   const [enabledCategories, setEnabledCategories] = useLocalStorage<EnabledCategoriesState>(
     'budget-enabledCategories',
     BUDGET_CATEGORIES.reduce((acc, cat) => ({ ...acc, [cat.key]: true }), {})
+  );
+  
+  // Derive currency object from stored code
+  const selectedCurrency = useMemo(() => 
+    CURRENCIES.find(c => c.code === currencyCode) || CURRENCIES[0],
+    [currencyCode]
   );
   
   // Session-only state (not persisted)
@@ -82,17 +89,29 @@ export const BudgetPlanner: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-3xl shadow-xl p-6 md:p-10 mb-8 border border-slate-100">
-        <div className="grid md:grid-cols-2 gap-8 mb-8">
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-3">Currency</label>
+            <select
+              value={currencyCode}
+              onChange={(e) => setCurrencyCode(e.target.value)}
+              className="w-full px-4 py-4 bg-slate-50 border-2 border-transparent focus:border-emerald-400 focus:bg-white rounded-2xl transition-all outline-none font-semibold text-slate-800"
+            >
+              {CURRENCIES.map(c => (
+                <option key={c.code} value={c.code}>{c.symbol} {c.code} - {c.name}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-3">Total Investment Budget</label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl">£</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl">{selectedCurrency.symbol}</span>
               <input 
                 type="number" 
                 value={totalBudget} 
                 onChange={(e) => setTotalBudget(e.target.value)} 
                 placeholder="25,000" 
-                className="w-full pl-10 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-emerald-400 focus:bg-white rounded-2xl transition-all outline-none text-xl font-semibold text-slate-800" 
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-emerald-400 focus:bg-white rounded-2xl transition-all outline-none text-xl font-semibold text-slate-800" 
               />
             </div>
           </div>
@@ -172,7 +191,7 @@ export const BudgetPlanner: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white rounded-3xl p-8 shadow-md border border-slate-100">
               <p className="text-slate-500 text-sm font-medium mb-1">Total Allocated</p>
-              <h4 className="text-3xl font-bold text-slate-800">£{budget.toLocaleString()}</h4>
+              <h4 className="text-3xl font-bold text-slate-800">{selectedCurrency.symbol}{budget.toLocaleString()}</h4>
             </div>
             <div className="bg-white rounded-3xl p-8 shadow-md border border-slate-100">
               <p className="text-slate-500 text-sm font-medium mb-1">Guest Capacity</p>
@@ -180,7 +199,7 @@ export const BudgetPlanner: React.FC = () => {
             </div>
             <div className="bg-white rounded-3xl p-8 shadow-md border border-slate-100">
               <p className="text-slate-500 text-sm font-medium mb-1">Cost Per Head</p>
-              <h4 className="text-3xl font-bold text-teal-600">£{(budget / guests).toFixed(2)}</h4>
+              <h4 className="text-3xl font-bold text-teal-600">{selectedCurrency.symbol}{(budget / guests).toFixed(2)}</h4>
             </div>
           </div>
 
@@ -213,7 +232,7 @@ export const BudgetPlanner: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="text-2xl font-black text-slate-800">£{amount.toLocaleString()}</span>
+                        <span className="text-2xl font-black text-slate-800">{selectedCurrency.symbol}{amount.toLocaleString()}</span>
                       </div>
                     </div>
                     

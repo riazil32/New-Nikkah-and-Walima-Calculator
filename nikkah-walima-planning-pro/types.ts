@@ -24,3 +24,9 @@ export interface MahrType {
 export interface EnabledCategoriesState {
   [key: string]: boolean;
 }
+
+export interface Currency {
+  code: string;
+  symbol: string;
+  name: string;
+}

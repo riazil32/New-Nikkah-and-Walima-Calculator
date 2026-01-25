@@ -1,22 +1,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { Info, Sparkles, X, ChevronRight } from './Icons';
-import { MAHR_TYPES, SILVER_NISAB_DIVISOR } from '../constants';
+import { MAHR_TYPES, SILVER_NISAB_DIVISOR, CURRENCIES } from '../constants';
 import { MahrType } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-
-const CURRENCIES = [
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham' },
-  { code: 'SAR', symbol: '﷼', name: 'Saudi Riyal' },
-  { code: 'PKR', symbol: '₨', name: 'Pakistani Rupee' },
-  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
-  { code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit' },
-  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
-  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
-];
 
 const RefreshIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
