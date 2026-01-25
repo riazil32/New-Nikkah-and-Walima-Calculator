@@ -200,6 +200,33 @@ export const BudgetPlanner: React.FC = () => {
           </div>
         </div>
 
+        {/* Over Budget Warning - Sticky below header, mobile only */}
+        {isOverBudget && (
+          <div className="md:hidden sticky top-[80px] z-40 -mx-6 mb-6">
+            <div className="bg-gradient-to-r from-red-500 via-rose-500 to-red-600 text-white py-3 px-5 shadow-lg border-b-4 border-red-700">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                    <span className="text-xl">⚠️</span>
+                  </div>
+                  <div>
+                    <p className="font-bold text-base">Over Budget!</p>
+                    <p className="text-xs text-red-100">Reduce allocations to continue</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-black">
+                    {Number.isInteger(totalPercentage) ? totalPercentage : totalPercentage.toFixed(1)}%
+                  </p>
+                  <p className="text-xs text-red-100">
+                    +{selectedCurrency.symbol}{Math.round(totalAllocated - budget).toLocaleString()} over
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Category Sliders */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
@@ -225,20 +252,20 @@ export const BudgetPlanner: React.FC = () => {
                     <span className="font-semibold text-slate-700 text-sm truncate">{cat.name}</span>
                   </div>
                   <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2 md:gap-1">
                       <button
                         onClick={() => handlePercentageChange(cat.key, Math.floor(percentage) - 1)}
-                        className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-md text-sm font-bold transition-colors"
+                        className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-600 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
                         disabled={percentage <= 0}
                       >
                         −
                       </button>
-                      <span className="text-sm font-bold text-emerald-600 w-12 text-center">
+                      <span className="text-sm font-bold text-emerald-600 w-14 md:w-12 text-center">
                         {Number.isInteger(percentage) ? percentage : percentage.toFixed(1)}%
                       </span>
                       <button
                         onClick={() => handlePercentageChange(cat.key, Math.floor(percentage) + 1)}
-                        className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-md text-sm font-bold transition-colors"
+                        className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-600 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
                         disabled={percentage >= 100}
                       >
                         +
@@ -270,13 +297,14 @@ export const BudgetPlanner: React.FC = () => {
                       />
                     </div>
                   </div>
+                  {/* Slider hidden on mobile to prevent accidental touches */}
                   <input
                     type="range"
                     min="0"
                     max="100"
                     value={percentage}
                     onChange={(e) => handlePercentageChange(cat.key, parseInt(e.target.value))}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                    className="hidden md:block w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                   />
                 </div>
               );
@@ -285,21 +313,29 @@ export const BudgetPlanner: React.FC = () => {
         </div>
 
         {/* Total Summary */}
-        <div className={`rounded-2xl p-4 mb-6 ${isOverBudget ? 'bg-red-50 border-2 border-red-200' : 'bg-emerald-50 border-2 border-emerald-200'}`}>
+        <div className={`rounded-2xl p-4 md:p-6 mb-6 transition-all ${
+          isOverBudget 
+            ? 'bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 md:shadow-lg md:shadow-red-100' 
+            : 'bg-emerald-50 border-2 border-emerald-200'
+        }`}>
           <div className="flex justify-between items-center">
             <div>
               <p className={`text-sm font-semibold ${isOverBudget ? 'text-red-600' : 'text-emerald-600'}`}>
                 Total Allocated
               </p>
-              <p className={`text-2xl font-bold ${isOverBudget ? 'text-red-700' : 'text-emerald-700'}`}>
+              <p className={`text-2xl md:text-3xl font-bold ${isOverBudget ? 'text-red-700' : 'text-emerald-700'}`}>
                 {Number.isInteger(totalPercentage) ? totalPercentage : totalPercentage.toFixed(1)}% ({selectedCurrency.symbol}{Math.round(totalAllocated).toLocaleString()})
               </p>
             </div>
             {isOverBudget && (
               <div className="text-right">
-                <p className="text-sm font-semibold text-red-600">Over budget by</p>
-                <p className="text-lg font-bold text-red-700">
-                  {selectedCurrency.symbol}{(totalAllocated - budget).toLocaleString()}
+                <div className="hidden md:flex items-center gap-2 justify-end mb-1">
+                  <span className="text-xl">⚠️</span>
+                  <p className="text-sm font-bold text-red-600 uppercase tracking-wide">Over Budget</p>
+                </div>
+                <p className="text-sm font-semibold text-red-600 md:hidden">Over budget by</p>
+                <p className="text-lg md:text-2xl font-black text-red-700">
+                  +{selectedCurrency.symbol}{Math.round(totalAllocated - budget).toLocaleString()}
                 </p>
               </div>
             )}
