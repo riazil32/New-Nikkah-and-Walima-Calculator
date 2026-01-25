@@ -3,7 +3,6 @@ import React, { useState, useMemo } from 'react';
 import { Users, Calculator, Sparkles } from './Icons';
 import { BUDGET_CATEGORIES } from '../constants';
 import { EnabledCategoriesState } from '../types';
-import { GoogleGenAI } from "@google/genai";
 
 export const BudgetPlanner: React.FC = () => {
   const [totalBudget, setTotalBudget] = useState<string>('20000');
@@ -34,13 +33,17 @@ export const BudgetPlanner: React.FC = () => {
   const getAiConsultation = async () => {
     setIsConsulting(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `I am planning an Islamic wedding (Nikkah/Walima) with a budget of £${budget} for ${guests} guests. 
-        Provide a short, inspiring, and practical piece of advice (max 3 sentences) focusing on 'Barakah' (blessings), simplicity, and meaningful spending for a blessed union.`,
+      const response = await fetch('/api/gemini-consult', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ budget, guests }),
       });
-      setAiTip(response.text || "");
+      const data = await response.json();
+      if (data.tip) {
+        setAiTip(data.tip);
+      } else if (data.error) {
+        console.error("AI Error:", data.error);
+      }
     } catch (error) {
       console.error("AI Error:", error);
     } finally {

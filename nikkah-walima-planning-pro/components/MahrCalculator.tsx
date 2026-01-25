@@ -3,7 +3,19 @@ import React, { useState } from 'react';
 import { Info, Sparkles, X, ChevronRight } from './Icons';
 import { MAHR_TYPES, SILVER_NISAB_DIVISOR } from '../constants';
 import { MahrType } from '../types';
-import { GoogleGenAI } from "@google/genai";
+
+const CURRENCIES = [
+  { code: 'GBP', symbol: '£', name: 'British Pound' },
+  { code: 'USD', symbol: '$', name: 'US Dollar' },
+  { code: 'EUR', symbol: '€', name: 'Euro' },
+  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham' },
+  { code: 'SAR', symbol: '﷼', name: 'Saudi Riyal' },
+  { code: 'PKR', symbol: '₨', name: 'Pakistani Rupee' },
+  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
+  { code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit' },
+  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
+  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
+];
 
 const RefreshIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -12,43 +24,49 @@ const RefreshIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 export const MahrCalculator: React.FC = () => {
-  const [silverPricePerGram, setSilverPricePerGram] = useState<number>(0.85); // Modern average in GBP
+  const [silverPricePerGram, setSilverPricePerGram] = useState<number>(0.85);
+  const [selectedCurrency, setSelectedCurrency] = useState(CURRENCIES[0]); // Default GBP
   const [selectedMahrInfo, setSelectedMahrInfo] = useState<MahrType | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [sources, setSources] = useState<{title: string, uri: string}[]>([]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchLivePrice = async () => {
     setIsFetching(true);
     setSources([]);
+    setFetchError(null);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: "What is the current market price of silver per gram in GBP (British Pounds)? Please provide just the numeric value in your response text, and the sources in grounding metadata.",
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
-      });
-
-      const text = response.text || "";
-      const match = text.match(/(\d+(\.\d+)?)/);
-      if (match) {
-        setSilverPricePerGram(parseFloat(match[1]));
+      const response = await fetch(`/api/silver-price?currency=${selectedCurrency.code}`);
+      const data = await response.json();
+      
+      if (data.error) {
+        setFetchError(data.error);
+        return;
+      }
+      
+      if (data.price) {
+        setSilverPricePerGram(data.price);
         setLastUpdated(new Date().toLocaleTimeString());
       }
-
-      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (chunks) {
-        const foundSources = chunks
-          .filter(c => c.web)
-          .map(c => ({ title: c.web.title, uri: c.web.uri }));
-        setSources(foundSources);
+      
+      if (data.sources) {
+        setSources(data.sources);
       }
     } catch (error) {
       console.error("Error fetching silver price:", error);
+      setFetchError("Failed to fetch price. Please try again.");
     } finally {
       setIsFetching(false);
+    }
+  };
+
+  const handleCurrencyChange = (code: string) => {
+    const currency = CURRENCIES.find(c => c.code === code);
+    if (currency) {
+      setSelectedCurrency(currency);
+      setLastUpdated(null); // Clear last updated when currency changes
+      setSources([]);
     }
   };
 
@@ -79,14 +97,26 @@ export const MahrCalculator: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 items-end">
+        <div className="grid md:grid-cols-3 gap-6 items-end">
+          <div className="space-y-4">
+            <label className="block text-sm font-bold text-slate-700">Currency</label>
+            <select
+              value={selectedCurrency.code}
+              onChange={(e) => handleCurrencyChange(e.target.value)}
+              className="w-full px-4 py-4 bg-slate-50 border-2 border-transparent focus:border-emerald-400 focus:bg-white rounded-2xl transition-all outline-none font-bold text-slate-800"
+            >
+              {CURRENCIES.map(c => (
+                <option key={c.code} value={c.code}>{c.symbol} {c.code} - {c.name}</option>
+              ))}
+            </select>
+          </div>
           <div className="space-y-4">
             <label className="block text-sm font-bold text-slate-700 flex justify-between">
-              <span>Price Per Gram (GBP)</span>
+              <span>Price Per Gram ({selectedCurrency.code})</span>
               {lastUpdated && <span className="text-[10px] text-emerald-600 uppercase">Updated: {lastUpdated}</span>}
             </label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">£</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">{selectedCurrency.symbol}</span>
               <input 
                 type="number" 
                 step="0.0001" 
@@ -95,11 +125,12 @@ export const MahrCalculator: React.FC = () => {
                   setSilverPricePerGram(parseFloat(e.target.value) || 0);
                   setLastUpdated(null);
                 }}
-                className="w-full pl-10 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-emerald-400 focus:bg-white rounded-2xl transition-all outline-none font-bold text-slate-800 text-xl"
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-emerald-400 focus:bg-white rounded-2xl transition-all outline-none font-bold text-slate-800 text-xl"
               />
             </div>
           </div>
           <div className="space-y-4">
+            <label className="block text-sm font-bold text-slate-700 opacity-0 hidden md:block">Action</label>
             <button 
               onClick={fetchLivePrice}
               disabled={isFetching}
@@ -110,10 +141,16 @@ export const MahrCalculator: React.FC = () => {
               }`}
             >
               <RefreshIcon className={`w-5 h-5 ${isFetching ? 'animate-spin' : ''}`} />
-              {isFetching ? 'Fetching Market Data...' : 'Update Live Price'}
+              {isFetching ? 'Fetching...' : 'Update Live Price'}
             </button>
           </div>
         </div>
+
+        {fetchError && (
+          <div className="mt-4 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-700 text-sm">
+            {fetchError}
+          </div>
+        )}
 
         {sources.length > 0 && (
           <div className="mt-4 pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-2">
@@ -142,7 +179,7 @@ export const MahrCalculator: React.FC = () => {
                 <p className="text-xs font-medium opacity-80 uppercase tracking-widest">{mahr.arabicName}</p>
               </div>
               <div className="p-6">
-                <p className="text-3xl font-black text-slate-800 mb-4">£{parseFloat(value).toLocaleString()}</p>
+                <p className="text-3xl font-black text-slate-800 mb-4">{selectedCurrency.symbol}{parseFloat(value).toLocaleString()}</p>
                 <div className={`${mahr.bgColor} ${mahr.textColor} rounded-2xl p-4 text-xs font-semibold mb-6 min-h-[80px]`}>
                   {mahr.description}
                   <div className="mt-2 text-[10px] opacity-70">Weight: {mahr.grams}g Silver</div>
