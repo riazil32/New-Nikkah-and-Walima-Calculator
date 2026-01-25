@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Info, Sparkles, X, ChevronRight } from './Icons';
 import { MAHR_TYPES, SILVER_NISAB_DIVISOR } from '../constants';
 import { MahrType } from '../types';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 const CURRENCIES = [
   { code: 'GBP', symbol: '£', name: 'British Pound' },
@@ -24,8 +25,17 @@ const RefreshIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 export const MahrCalculator: React.FC = () => {
-  const [silverPricePerGram, setSilverPricePerGram] = useState<number>(0.85);
-  const [selectedCurrency, setSelectedCurrency] = useState(CURRENCIES[0]); // Default GBP
+  // Persisted state
+  const [silverPricePerGram, setSilverPricePerGram] = useLocalStorage<number>('mahr-silverPrice', 0.85);
+  const [currencyCode, setCurrencyCode] = useLocalStorage<string>('mahr-currency', 'GBP');
+  
+  // Derive currency object from stored code
+  const selectedCurrency = useMemo(() => 
+    CURRENCIES.find(c => c.code === currencyCode) || CURRENCIES[0],
+    [currencyCode]
+  );
+  
+  // Session-only state
   const [selectedMahrInfo, setSelectedMahrInfo] = useState<MahrType | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -62,12 +72,9 @@ export const MahrCalculator: React.FC = () => {
   };
 
   const handleCurrencyChange = (code: string) => {
-    const currency = CURRENCIES.find(c => c.code === code);
-    if (currency) {
-      setSelectedCurrency(currency);
-      setLastUpdated(null); // Clear last updated when currency changes
-      setSources([]);
-    }
+    setCurrencyCode(code);
+    setLastUpdated(null); // Clear last updated when currency changes
+    setSources([]);
   };
 
   const handleNisabChange = (val: string) => {

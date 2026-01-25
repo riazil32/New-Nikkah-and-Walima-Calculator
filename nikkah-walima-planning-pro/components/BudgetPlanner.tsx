@@ -3,16 +3,21 @@ import React, { useState, useMemo } from 'react';
 import { Users, Calculator, Sparkles } from './Icons';
 import { BUDGET_CATEGORIES } from '../constants';
 import { EnabledCategoriesState } from '../types';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export const BudgetPlanner: React.FC = () => {
-  const [totalBudget, setTotalBudget] = useState<string>('20000');
-  const [guestCount, setGuestCount] = useState<string>('150');
+  // Persisted state
+  const [totalBudget, setTotalBudget] = useLocalStorage<string>('budget-totalBudget', '20000');
+  const [guestCount, setGuestCount] = useLocalStorage<string>('budget-guestCount', '150');
+  const [enabledCategories, setEnabledCategories] = useLocalStorage<EnabledCategoriesState>(
+    'budget-enabledCategories',
+    BUDGET_CATEGORIES.reduce((acc, cat) => ({ ...acc, [cat.key]: true }), {})
+  );
+  
+  // Session-only state (not persisted)
   const [showResults, setShowResults] = useState<boolean>(false);
   const [aiTip, setAiTip] = useState<string>("");
   const [isConsulting, setIsConsulting] = useState(false);
-  const [enabledCategories, setEnabledCategories] = useState<EnabledCategoriesState>(
-    BUDGET_CATEGORIES.reduce((acc, cat) => ({ ...acc, [cat.key]: true }), {})
-  );
 
   const budget = parseFloat(totalBudget) || 0;
   const guests = parseInt(guestCount) || 0;
