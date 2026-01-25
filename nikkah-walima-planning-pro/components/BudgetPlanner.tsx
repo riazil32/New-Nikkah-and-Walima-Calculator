@@ -24,10 +24,27 @@ export const BudgetPlanner: React.FC = () => {
   // Session-only state (not persisted)
   const [showResults, setShowResults] = useState<boolean>(false);
   const [aiTip, setAiTip] = useState<string>("");
+  const [aiError, setAiError] = useState<string>("");
   const [isConsulting, setIsConsulting] = useState(false);
 
   const budget = parseFloat(totalBudget) || 0;
   const guests = parseInt(guestCount) || 0;
+
+  // Validation
+  const budgetError = useMemo(() => {
+    if (totalBudget && budget <= 0) return 'Please enter a valid budget amount';
+    if (budget < 0) return 'Budget cannot be negative';
+    return null;
+  }, [totalBudget, budget]);
+
+  const guestError = useMemo(() => {
+    if (guestCount && guests <= 0) return 'Please enter a valid guest count';
+    if (guests < 0) return 'Guest count cannot be negative';
+    if (guests > 10000) return 'Guest count seems unusually high';
+    return null;
+  }, [guestCount, guests]);
+
+  const hasValidInput = budget > 0 && guests > 0 && !budgetError && !guestError;
 
   const totalEnabledBaseWeight = useMemo(() => {
     return BUDGET_CATEGORIES.reduce((sum, cat) => 
@@ -36,14 +53,16 @@ export const BudgetPlanner: React.FC = () => {
   }, [enabledCategories]);
 
   const handleCalculate = () => {
-    if (budget > 0 && guests > 0) {
+    if (hasValidInput) {
       setShowResults(true);
       setAiTip("");
+      setAiError("");
     }
   };
 
   const getAiConsultation = async () => {
     setIsConsulting(true);
+    setAiError("");
     try {
       const response = await fetch('/api/gemini-consult', {
         method: 'POST',
@@ -54,10 +73,10 @@ export const BudgetPlanner: React.FC = () => {
       if (data.tip) {
         setAiTip(data.tip);
       } else if (data.error) {
-        console.error("AI Error:", data.error);
+        setAiError(data.error);
       }
     } catch (error) {
-      console.error("AI Error:", error);
+      setAiError("Unable to connect to AI service. Please try again later.");
     } finally {
       setIsConsulting(false);
     }
@@ -108,12 +127,16 @@ export const BudgetPlanner: React.FC = () => {
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl">{selectedCurrency.symbol}</span>
               <input 
                 type="number" 
+                min="0"
                 value={totalBudget} 
                 onChange={(e) => setTotalBudget(e.target.value)} 
                 placeholder="25,000" 
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-emerald-400 focus:bg-white rounded-2xl transition-all outline-none text-xl font-semibold text-slate-800" 
+                className={`w-full pl-12 pr-4 py-4 bg-slate-50 border-2 focus:bg-white rounded-2xl transition-all outline-none text-xl font-semibold text-slate-800 ${
+                  budgetError ? 'border-red-300 focus:border-red-400' : 'border-transparent focus:border-emerald-400'
+                }`}
               />
             </div>
+            {budgetError && <p className="text-red-500 text-xs mt-2 font-medium">{budgetError}</p>}
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-3">Expected Guest List</label>
@@ -121,12 +144,17 @@ export const BudgetPlanner: React.FC = () => {
               <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-6 h-6" />
               <input 
                 type="number" 
+                min="1"
+                max="10000"
                 value={guestCount} 
                 onChange={(e) => setGuestCount(e.target.value)} 
                 placeholder="200" 
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-emerald-400 focus:bg-white rounded-2xl transition-all outline-none text-xl font-semibold text-slate-800" 
+                className={`w-full pl-12 pr-4 py-4 bg-slate-50 border-2 focus:bg-white rounded-2xl transition-all outline-none text-xl font-semibold text-slate-800 ${
+                  guestError ? 'border-red-300 focus:border-red-400' : 'border-transparent focus:border-emerald-400'
+                }`}
               />
             </div>
+            {guestError && <p className="text-red-500 text-xs mt-2 font-medium">{guestError}</p>}
           </div>
         </div>
 
@@ -151,8 +179,13 @@ export const BudgetPlanner: React.FC = () => {
         </div>
 
         <button 
-          onClick={handleCalculate} 
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-5 rounded-2xl font-bold text-lg shadow-lg shadow-emerald-200 transition-all active:scale-[0.98]"
+          onClick={handleCalculate}
+          disabled={!hasValidInput}
+          className={`w-full py-5 rounded-2xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] ${
+            hasValidInput 
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200' 
+              : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+          }`}
         >
           Generate Optimized Breakdown
         </button>
@@ -171,6 +204,17 @@ export const BudgetPlanner: React.FC = () => {
               {aiTip ? (
                 <div className="animate-in fade-in zoom-in duration-500">
                   <p className="text-slate-200 leading-relaxed italic text-lg">"{aiTip}"</p>
+                </div>
+              ) : aiError ? (
+                <div className="animate-in fade-in duration-300">
+                  <p className="text-red-300 text-sm mb-3">{aiError}</p>
+                  <button 
+                    onClick={getAiConsultation}
+                    disabled={isConsulting}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-3 rounded-xl font-bold transition-all disabled:opacity-50 flex items-center gap-2"
+                  >
+                    Try Again
+                  </button>
                 </div>
               ) : (
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
