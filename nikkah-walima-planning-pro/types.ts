@@ -1,12 +1,19 @@
 
 export type TabType = 'budget' | 'mahr';
 
+export type Payer = 'joint' | 'groom' | 'bride';
+
+export type CategorySection = 'events' | 'personal' | 'logistics';
+
 export interface BudgetCategory {
   key: string;
   name: string;
   icon: string;
   color: string;
   basePercentage: number;
+  section: CategorySection;
+  defaultPayer: Payer;
+  isCustom?: boolean;
 }
 
 export interface MahrType {

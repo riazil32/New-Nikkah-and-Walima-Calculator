@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BudgetCategory, MahrType, Currency } from './types';
+import { BudgetCategory, MahrType, Currency, CategorySection } from './types';
 
 export const CURRENCIES: Currency[] = [
   { code: 'GBP', symbol: '£', name: 'British Pound' },
@@ -15,19 +15,34 @@ export const CURRENCIES: Currency[] = [
   { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
 ];
 
+export const SECTION_LABELS: Record<CategorySection, { title: string; icon: string }> = {
+  events: { title: 'The Events', icon: '🎊' },
+  personal: { title: 'Personal & Attire', icon: '💍' },
+  logistics: { title: 'Media & Logistics', icon: '📦' },
+};
+
 export const BUDGET_CATEGORIES: BudgetCategory[] = [
-  { key: 'nikkah', name: 'Nikkah Ceremony', icon: '🕌', color: 'bg-emerald-100 text-emerald-700', basePercentage: 0.07 },
-  { key: 'walima-venue', name: 'Walima Venue', icon: '🏛️', color: 'bg-teal-100 text-teal-700', basePercentage: 0.18 },
-  { key: 'catering', name: 'Catering & Food', icon: '🍽️', color: 'bg-amber-100 text-amber-700', basePercentage: 0.27 },
-  { key: 'mehndi', name: 'Mehndi Event', icon: '✨', color: 'bg-yellow-100 text-yellow-700', basePercentage: 0.06 },
-  { key: 'photography', name: 'Photography & Video', icon: '📸', color: 'bg-purple-100 text-purple-700', basePercentage: 0.11 },
-  { key: 'decor', name: 'Decor & Flowers', icon: '💐', color: 'bg-pink-100 text-pink-700', basePercentage: 0.07 },
-  { key: 'attire', name: 'Attire (Bride & Groom)', icon: '👗', color: 'bg-rose-100 text-rose-700', basePercentage: 0.07 },
-  { key: 'beauty', name: 'Hair & Makeup', icon: '💄', color: 'bg-fuchsia-100 text-fuchsia-700', basePercentage: 0.03 },
-  { key: 'transport', name: 'Transport', icon: '🚗', color: 'bg-blue-100 text-blue-700', basePercentage: 0.03 },
-  { key: 'invitations', name: 'Invitations', icon: '💌', color: 'bg-indigo-100 text-indigo-700', basePercentage: 0.02 },
-  { key: 'favours', name: 'Guest Favours', icon: '🎁', color: 'bg-violet-100 text-violet-700', basePercentage: 0.04 },
-  { key: 'other', name: 'Other Costs', icon: '📋', color: 'bg-slate-100 text-slate-700', basePercentage: 0.05 }
+  // === THE EVENTS ===
+  { key: 'nikkah', name: 'Nikkah Ceremony', icon: '🕌', color: 'bg-emerald-100 text-emerald-700', basePercentage: 0.05, section: 'events', defaultPayer: 'joint' },
+  { key: 'civil-registry', name: 'Civil Registry', icon: '📜', color: 'bg-slate-100 text-slate-700', basePercentage: 0.01, section: 'events', defaultPayer: 'joint' },
+  { key: 'walima-venue', name: 'Walima Venue', icon: '🏛️', color: 'bg-teal-100 text-teal-700', basePercentage: 0.15, section: 'events', defaultPayer: 'groom' },
+  { key: 'catering', name: 'Catering & Food', icon: '🍽️', color: 'bg-amber-100 text-amber-700', basePercentage: 0.25, section: 'events', defaultPayer: 'joint' },
+  { key: 'pre-wedding', name: 'Pre-Wedding Events (Mehndi, Dholki)', icon: '✨', color: 'bg-yellow-100 text-yellow-700', basePercentage: 0.06, section: 'events', defaultPayer: 'bride' },
+  { key: 'entertainment', name: 'Entertainment & AV', icon: '🎤', color: 'bg-orange-100 text-orange-700', basePercentage: 0.03, section: 'events', defaultPayer: 'joint' },
+  { key: 'decor', name: 'Decor & Stage', icon: '💐', color: 'bg-pink-100 text-pink-700', basePercentage: 0.06, section: 'events', defaultPayer: 'joint' },
+  
+  // === PERSONAL & ATTIRE ===
+  { key: 'mahr', name: "Mahr (Groom's Obligation)", icon: '💎', color: 'bg-cyan-100 text-cyan-700', basePercentage: 0, section: 'personal', defaultPayer: 'groom' },
+  { key: 'gold-jewellery', name: 'Gold & Jewellery', icon: '👑', color: 'bg-yellow-100 text-yellow-700', basePercentage: 0.10, section: 'personal', defaultPayer: 'bride' },
+  { key: 'attire', name: 'Attire (Bride & Groom)', icon: '👗', color: 'bg-rose-100 text-rose-700', basePercentage: 0.08, section: 'personal', defaultPayer: 'joint' },
+  { key: 'beauty', name: 'Hair & Makeup', icon: '💄', color: 'bg-fuchsia-100 text-fuchsia-700', basePercentage: 0.04, section: 'personal', defaultPayer: 'bride' },
+  
+  // === MEDIA & LOGISTICS ===
+  { key: 'photography', name: 'Photography & Video', icon: '📸', color: 'bg-purple-100 text-purple-700', basePercentage: 0.10, section: 'logistics', defaultPayer: 'joint' },
+  { key: 'transport', name: 'Transport', icon: '🚗', color: 'bg-blue-100 text-blue-700', basePercentage: 0.02, section: 'logistics', defaultPayer: 'joint' },
+  { key: 'invitations', name: 'Invitations', icon: '💌', color: 'bg-indigo-100 text-indigo-700', basePercentage: 0.01, section: 'logistics', defaultPayer: 'joint' },
+  { key: 'favours', name: 'Guest Favours', icon: '🎁', color: 'bg-violet-100 text-violet-700', basePercentage: 0.02, section: 'logistics', defaultPayer: 'joint' },
+  { key: 'emergency', name: 'Emergency Fund', icon: '🛡️', color: 'bg-red-100 text-red-700', basePercentage: 0.02, section: 'logistics', defaultPayer: 'joint' },
 ];
 
 export const MAHR_TYPES: MahrType[] = [
