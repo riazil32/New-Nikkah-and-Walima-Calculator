@@ -522,10 +522,11 @@ export const BudgetPlanner: React.FC = () => {
           </div>
         </div>
 
-        {/* Over Budget Warning - Sticky below header, mobile only */}
+        {/* Over Budget Warning - Sticky below header */}
         {isOverBudget && (
-          <div className="md:hidden sticky top-[80px] z-40 -mx-6 mb-6">
-            <div className="bg-gradient-to-r from-red-500 via-rose-500 to-red-600 text-white py-3 px-5 shadow-lg border-b-4 border-red-700">
+          <div className="sticky top-[80px] z-40 -mx-6 md:-mx-10 mb-6">
+            {/* Mobile: Full gradient banner */}
+            <div className="md:hidden bg-gradient-to-r from-red-500 via-rose-500 to-red-600 text-white py-3 px-5 shadow-lg border-b-4 border-red-700">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
@@ -541,6 +542,24 @@ export const BudgetPlanner: React.FC = () => {
                     {Number.isInteger(totalPercentage) ? totalPercentage : totalPercentage.toFixed(1)}%
                   </p>
                   <p className="text-xs text-red-100">
+                    +{selectedCurrency.symbol}{Math.round(totalAllocated - budget).toLocaleString()} over
+                  </p>
+                </div>
+              </div>
+            </div>
+            {/* Desktop: Slimmer, more refined banner */}
+            <div className="hidden md:block bg-gradient-to-r from-red-500 to-rose-500 text-white py-2.5 px-6 shadow-lg rounded-b-xl">
+              <div className="flex items-center justify-between max-w-4xl mx-auto">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">⚠️</span>
+                  <p className="font-bold">Over Budget!</p>
+                  <p className="text-sm text-red-100">Reduce allocations to continue</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <p className="text-lg font-black">
+                    {Number.isInteger(totalPercentage) ? totalPercentage : totalPercentage.toFixed(1)}%
+                  </p>
+                  <p className="text-sm font-semibold bg-white/20 px-3 py-1 rounded-full">
                     +{selectedCurrency.symbol}{Math.round(totalAllocated - budget).toLocaleString()} over
                   </p>
                 </div>
