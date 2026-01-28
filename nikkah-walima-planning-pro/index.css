@@ -31,50 +31,90 @@ body {
 
 /* Print styles for certificate */
 @media print {
-  /* Hide everything except the certificate */
-  body * {
-    visibility: hidden;
-  }
-  
-  #certificate-preview,
-  #certificate-preview * {
-    visibility: visible;
-  }
-  
-  #certificate-preview {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    background: white !important;
-  }
-  
-  /* Reset colors for printing */
-  #certificate-preview .bg-gradient-to-br {
-    background: white !important;
-  }
-  
-  #certificate-preview .bg-teal-50,
-  #certificate-preview .bg-rose-50,
-  #certificate-preview .bg-violet-50,
-  #certificate-preview .bg-emerald-50 {
-    background-color: #f9fafb !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  
-  /* Ensure borders print */
-  #certificate-preview .border-emerald-600 {
-    border-color: #059669 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  
-  /* Page settings */
   @page {
     size: A4;
     margin: 10mm;
   }
+  
+  /* Collapse body height and hide overflow */
+  html, body {
+    height: auto !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Hide everything via visibility */
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Show certificate and all its children */
+  #certificate-preview,
+  #certificate-preview * {
+    visibility: visible !important;
+  }
+  
+  /* Position certificate at top */
+  #certificate-preview {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    background: white !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+  
+  /* Certificate inner content */
+  #certificate-preview > div:last-child {
+    padding: 6mm !important;
+  }
+  
+  #certificate-preview .border-4 { 
+    padding: 6mm !important; 
+    border-width: 2px !important; 
+  }
+  
+  /* Balanced spacing - not too tight */
+  #certificate-preview .p-8, #certificate-preview .md\:p-12 { padding: 5mm !important; }
+  #certificate-preview .p-6 { padding: 4mm !important; }
+  #certificate-preview .mb-10 { margin-bottom: 4mm !important; }
+  #certificate-preview .mb-8 { margin-bottom: 3mm !important; }
+  #certificate-preview .mb-6 { margin-bottom: 2mm !important; }
+  #certificate-preview .mb-4 { margin-bottom: 1.5mm !important; }
+  #certificate-preview .mb-2 { margin-bottom: 1mm !important; }
+  #certificate-preview .pb-8 { padding-bottom: 3mm !important; }
+  #certificate-preview .pt-8 { padding-top: 3mm !important; }
+  #certificate-preview .mt-10 { margin-top: 4mm !important; }
+  #certificate-preview .gap-8 { gap: 4mm !important; }
+  #certificate-preview .gap-6 { gap: 3mm !important; }
+  #certificate-preview .space-y-4 > * + * { margin-top: 2mm !important; }
+  #certificate-preview .rounded-2xl { border-radius: 6px !important; }
+  
+  /* Readable fonts */
+  #certificate-preview .text-5xl { font-size: 28px !important; }
+  #certificate-preview .text-4xl { font-size: 22px !important; }
+  #certificate-preview .text-3xl { font-size: 18px !important; }
+  #certificate-preview .text-2xl { font-size: 15px !important; }
+  #certificate-preview .text-xl { font-size: 13px !important; }
+  #certificate-preview .text-lg { font-size: 11px !important; }
+  #certificate-preview .text-sm { font-size: 10px !important; }
+  #certificate-preview .text-xs { font-size: 9px !important; }
+  
+  /* Colors */
+  #certificate-preview .bg-teal-50 { background-color: #f0fdfa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .bg-rose-50 { background-color: #fff1f2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .bg-violet-50 { background-color: #f5f3ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .border-emerald-600 { border-color: #059669 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .border-emerald-200 { border-color: #a7f3d0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .border-teal-200 { border-color: #99f6e4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .border-rose-200 { border-color: #fecdd3 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .border-violet-200 { border-color: #ddd6fe !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .text-emerald-600, #certificate-preview .text-emerald-700 { color: #059669 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .text-teal-600, #certificate-preview .text-teal-700 { color: #0d9488 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .text-rose-600, #certificate-preview .text-rose-700 { color: #e11d48 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .text-violet-600, #certificate-preview .text-violet-700 { color: #7c3aed !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
