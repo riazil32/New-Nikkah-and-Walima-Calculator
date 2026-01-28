@@ -1,5 +1,5 @@
 
-export type TabType = 'budget' | 'mahr' | 'contract';
+export type TabType = 'budget' | 'mahr' | 'contract' | 'timeline';
 
 export type MahrPaymentType = 'prompt' | 'deferred';
 
@@ -64,3 +64,30 @@ export interface ContractData {
   waliName: string;
   officiantName: string;
 }
+
+// Timeline Types
+export interface PrayerTime {
+  name: string;
+  time: string; // HH:MM format
+  type: 'fixed';
+}
+
+export interface WeddingEvent {
+  id: string;
+  name: string;
+  startTime: string; // HH:MM format
+  endTime: string; // HH:MM format
+  description?: string;
+  type: 'custom';
+}
+
+export interface TimelineData {
+  date: string; // YYYY-MM-DD
+  city: string;
+  country: string;
+  method: number; // Calculation method (1-5)
+  school: number; // 0 = Standard (Shafi/Maliki/Hanbali), 1 = Hanafi
+  events: WeddingEvent[];
+}
+
+export type TimelineItem = PrayerTime | WeddingEvent;

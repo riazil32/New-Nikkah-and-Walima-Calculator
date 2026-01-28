@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
-import { Sparkles, Calculator, Heart, Sun, Moon, Scroll } from './components/Icons';
+import { Sparkles, Calculator, Heart, Sun, Moon, Scroll, Clock } from './components/Icons';
 import { BudgetPlanner } from './components/BudgetPlanner';
 import { MahrCalculator } from './components/MahrCalculator';
 import { ContractBuilder } from './components/ContractBuilder';
+import { TimelinePlanner } from './components/TimelinePlanner';
 import { useTheme } from './hooks/useTheme';
 import { TabType } from './types';
 
@@ -61,6 +62,17 @@ const App: React.FC = () => {
                 <Scroll className="w-5 h-5" />
                 Certificate
               </button>
+              <button
+                onClick={() => setActiveTab('timeline')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
+                  activeTab === 'timeline' 
+                    ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
+              >
+                <Clock className="w-5 h-5" />
+                Timeline
+              </button>
             </div>
             
             {/* Theme Toggle */}
@@ -80,6 +92,7 @@ const App: React.FC = () => {
         {activeTab === 'budget' && <BudgetPlanner />}
         {activeTab === 'mahr' && <MahrCalculator />}
         {activeTab === 'contract' && <ContractBuilder />}
+        {activeTab === 'timeline' && <TimelinePlanner />}
       </main>
 
       {/* Mobile Sticky Navigation */}
@@ -111,6 +124,15 @@ const App: React.FC = () => {
           >
             <Scroll className="w-4 h-4" />
             Certificate
+          </button>
+          <button
+            onClick={() => setActiveTab('timeline')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.5rem] font-bold text-xs transition-all ${
+              activeTab === 'timeline' ? 'bg-emerald-600 text-white' : 'text-slate-400'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            Timeline
           </button>
         </div>
       </div>
