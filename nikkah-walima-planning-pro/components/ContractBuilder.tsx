@@ -476,6 +476,88 @@ export const ContractBuilder: React.FC = () => {
         </div>
       </div>
 
+      {/* FAQ Section */}
+      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-6 md:p-8 mb-8 border border-slate-100 dark:border-slate-700">
+        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+          <span className="text-xl">❓</span> Frequently Asked Questions
+        </h3>
+        <div className="space-y-4">
+          {/* FAQ 1 */}
+          <details className="group">
+            <summary className="flex items-center justify-between cursor-pointer p-4 bg-slate-50 dark:bg-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors">
+              <span className="font-semibold text-slate-700 dark:text-slate-200">Will my Imam sign this certificate?</span>
+              <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div className="p-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="mb-2">
+                <strong className="text-emerald-600 dark:text-emerald-400">Yes, most Imams are happy to sign a keepsake certificate!</strong>
+              </p>
+              <p className="mb-2">
+                The key is to <strong>show your Imam before the ceremony</strong> to get his approval. Most Imams will happily sign a beautiful keepsake certificate alongside their official register if you ask politely in advance.
+              </p>
+              <p className="text-slate-500 dark:text-slate-400 italic">
+                Tip: Bring a printed copy to your pre-Nikkah meeting so the Imam knows what to expect on the day.
+              </p>
+            </div>
+          </details>
+
+          {/* FAQ 2 */}
+          <details className="group">
+            <summary className="flex items-center justify-between cursor-pointer p-4 bg-slate-50 dark:bg-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors">
+              <span className="font-semibold text-slate-700 dark:text-slate-200">Is this certificate legally binding?</span>
+              <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div className="p-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="mb-2">
+                <strong className="text-amber-600 dark:text-amber-400">No, this is a religious/commemorative certificate.</strong>
+              </p>
+              <p className="mb-2">
+                In the UK, USA, Canada, and most Western countries, you need <strong>civil registration</strong> with your local authority (council/city hall) for your marriage to be legally recognized.
+              </p>
+              <p>
+                This certificate is for your <strong>Islamic Nikkah ceremony</strong> - perfect for signing in front of family, framing on your wall, and keeping as a beautiful memento of your blessed union.
+              </p>
+            </div>
+          </details>
+
+          {/* FAQ 3 */}
+          <details className="group">
+            <summary className="flex items-center justify-between cursor-pointer p-4 bg-slate-50 dark:bg-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors">
+              <span className="font-semibold text-slate-700 dark:text-slate-200">Why do I need 2 witnesses and a Wali?</span>
+              <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div className="p-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="mb-2">
+                These are <strong>Islamic requirements</strong> for a valid Nikkah:
+              </p>
+              <ul className="list-disc list-inside space-y-1 mb-2">
+                <li><strong>2 Adult Muslim Witnesses</strong> - Required to observe and confirm the marriage contract</li>
+                <li><strong>Wali (Guardian)</strong> - The bride's guardian (usually her father) who gives consent. This is required in most schools of Islamic jurisprudence.</li>
+              </ul>
+              <p className="text-slate-500 dark:text-slate-400 italic">
+                The Imam/Officiant field is optional but recommended if someone is conducting the ceremony.
+              </p>
+            </div>
+          </details>
+
+          {/* FAQ 4 */}
+          <details className="group">
+            <summary className="flex items-center justify-between cursor-pointer p-4 bg-slate-50 dark:bg-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors">
+              <span className="font-semibold text-slate-700 dark:text-slate-200">What's the difference between Prompt and Deferred Mahr?</span>
+              <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div className="p-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="mb-2">
+                <strong className="text-violet-600 dark:text-violet-400">Prompt (Mu'ajjal):</strong> Paid immediately at the time of the Nikkah ceremony. This is the most common practice.
+              </p>
+              <p>
+                <strong className="text-violet-600 dark:text-violet-400">Deferred (Mu'wajjal):</strong> Payment is delayed - typically payable upon the wife's request, divorce, or the husband's death. Some couples split the Mahr into both portions.
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+
       {/* Certificate Preview (conditionally rendered) */}
       {showPreview && (
         <div id="certificate-preview" className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden print:shadow-none print:border-0 print:rounded-none">
