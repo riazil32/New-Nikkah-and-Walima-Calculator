@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { ContractData, MahrPaymentType } from '../types';
 import { MAHR_TYPES, CURRENCIES } from '../constants';
+import { PrintPortal } from './PrintPortal';
 
 // Default empty contract data
 const getDefaultContractData = (): ContractData => ({
@@ -558,11 +559,10 @@ export const ContractBuilder: React.FC = () => {
         </div>
       </div>
 
-      {/* Certificate Preview (conditionally rendered) */}
+      {/* Certificate Preview Controls (shown inline when preview is active) */}
       {showPreview && (
-        <div id="certificate-preview" className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden print:shadow-none print:border-0 print:rounded-none">
-          {/* Certificate Header Actions */}
-          <div className="bg-slate-50 dark:bg-slate-700 p-4 flex justify-between items-center print:hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden mb-8">
+          <div className="bg-slate-50 dark:bg-slate-700 p-4 flex justify-between items-center">
             <h3 className="font-bold text-slate-700 dark:text-slate-200">Certificate Preview</h3>
             <div className="flex gap-3">
               <button
@@ -580,8 +580,8 @@ export const ContractBuilder: React.FC = () => {
             </div>
           </div>
           
-          {/* The Certificate Itself */}
-          <div className="p-8 md:p-12 bg-gradient-to-br from-white to-emerald-50 print:bg-white">
+          {/* Inline preview of certificate (visible on screen) */}
+          <div className="p-8 md:p-12 bg-gradient-to-br from-white to-emerald-50">
             {/* Decorative Border */}
             <div className="border-4 border-double border-emerald-600 p-8 md:p-12">
               {/* Header */}
@@ -682,6 +682,114 @@ export const ContractBuilder: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Print Portal - Certificate rendered outside #root for clean printing */}
+      {showPreview && (
+        <PrintPortal>
+          <div id="certificate-preview" className="bg-white">
+            <div className="p-8 md:p-12 bg-white">
+              {/* Decorative Border */}
+              <div className="border-4 border-double border-emerald-600 p-8 md:p-12">
+                {/* Header */}
+                <div className="text-center mb-10">
+                  <div className="text-emerald-600 text-5xl mb-4">﷽</div>
+                  <h1 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 mb-2">
+                    Nikkah Certificate
+                  </h1>
+                  <p className="text-emerald-700 font-medium">شهادة النكاح</p>
+                </div>
+
+                {/* Date & Location */}
+                <div className="text-center mb-10 pb-8 border-b border-emerald-200">
+                  <p className="text-slate-600 mb-2">
+                    <span className="font-semibold">Date:</span> {contractData.dateGregorian ? new Date(contractData.dateGregorian).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
+                    {contractData.dateHijri && <span className="text-emerald-600 ml-2">({contractData.dateHijri})</span>}
+                  </p>
+                  <p className="text-slate-600">
+                    <span className="font-semibold">Location:</span> {contractData.location || '—'}
+                  </p>
+                </div>
+
+                {/* Main Content */}
+                <div className="text-center mb-10 max-w-2xl mx-auto">
+                  <p className="text-slate-700 leading-relaxed mb-6">
+                    This is to certify that the Islamic marriage contract (Nikkah) has been solemnized between:
+                  </p>
+                  
+                  {/* The Couple */}
+                  <div className="grid grid-cols-2 gap-8 mb-8">
+                    {/* Groom */}
+                    <div className="bg-teal-50 rounded-2xl p-6 border border-teal-200">
+                      <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-2">The Groom</p>
+                      <p className="text-xl font-serif font-bold text-slate-800">{contractData.groomName || '—'}</p>
+                      <p className="text-sm text-slate-600 mt-1">Son of {contractData.groomFatherName || '—'}</p>
+                    </div>
+                    
+                    {/* Bride */}
+                    <div className="bg-rose-50 rounded-2xl p-6 border border-rose-200">
+                      <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-2">The Bride</p>
+                      <p className="text-xl font-serif font-bold text-slate-800">{contractData.brideName || '—'}</p>
+                      <p className="text-sm text-slate-600 mt-1">Daughter of {contractData.brideFatherName || '—'}</p>
+                    </div>
+                  </div>
+
+                  {/* Mahr */}
+                  <div className="bg-violet-50 rounded-2xl p-6 border border-violet-200 mb-8">
+                    <p className="text-xs font-bold text-violet-600 uppercase tracking-widest mb-2">The Mahr (Dower)</p>
+                    <p className="text-2xl font-bold text-slate-800">{contractData.mahrAmount || '—'}</p>
+                    <p className="text-sm text-violet-600 mt-1">
+                      {contractData.mahrType === 'prompt' ? 'Prompt (Mu\'ajjal) - Payable at time of Nikkah' : 'Deferred (Mu\'wajjal) - Payable upon demand'}
+                    </p>
+                  </div>
+
+                  <p className="text-slate-700 leading-relaxed">
+                    The marriage was conducted in accordance with Islamic Shariah, with the mutual consent of both parties and in the presence of the witnesses named below.
+                  </p>
+                </div>
+
+                {/* Witnesses & Signatures */}
+                <div className="grid grid-cols-2 gap-6 pt-8 border-t border-emerald-200">
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Witnesses</p>
+                    <div className="space-y-4">
+                      <div className="border-b border-slate-200 pb-2">
+                        <p className="text-sm text-slate-500">Witness 1</p>
+                        <p className="font-semibold text-slate-800">{contractData.witness1Name || '—'}</p>
+                      </div>
+                      <div className="border-b border-slate-200 pb-2">
+                        <p className="text-sm text-slate-500">Witness 2</p>
+                        <p className="font-semibold text-slate-800">{contractData.witness2Name || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Officials</p>
+                    <div className="space-y-4">
+                      <div className="border-b border-slate-200 pb-2">
+                        <p className="text-sm text-slate-500">Wali (Bride's Guardian)</p>
+                        <p className="font-semibold text-slate-800">{contractData.waliName || '—'}</p>
+                      </div>
+                      {contractData.officiantName && (
+                        <div className="border-b border-slate-200 pb-2">
+                          <p className="text-sm text-slate-500">Officiant (Imam)</p>
+                          <p className="font-semibold text-slate-800">{contractData.officiantName}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="text-center mt-10 pt-8 border-t border-emerald-200">
+                  <p className="text-emerald-600 text-sm font-medium italic">
+                    "And among His signs is that He created for you mates from among yourselves, that you may dwell in tranquility with them, and He has put love and mercy between your hearts." - Quran 30:21
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </PrintPortal>
       )}
     </div>
   );
