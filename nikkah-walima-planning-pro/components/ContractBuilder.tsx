@@ -120,9 +120,23 @@ export const ContractBuilder: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* Header */}
-      <div className="text-center mb-10">
-        <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">Nikkah Contract Builder</h2>
+      <div className="text-center mb-6">
+        <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">Nikkah Certificate Designer</h2>
         <p className="text-slate-600 dark:text-slate-400 italic">"And among His signs is that He created for you mates from among yourselves." - Quran 30:21</p>
+      </div>
+
+      {/* Disclaimer Banner */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-4 mb-8">
+        <div className="flex gap-3">
+          <span className="text-amber-500 text-xl flex-shrink-0">ℹ️</span>
+          <div className="text-sm text-amber-800 dark:text-amber-200">
+            <p className="font-semibold mb-1">This is a keepsake certificate for religious & commemorative purposes.</p>
+            <p className="text-amber-700 dark:text-amber-300">
+              Perfect for signing during your Nikkah ceremony, framing, or as a beautiful alternative to generic Imam-provided forms. 
+              For legal recognition in the UK/US, you must also complete civil registration with your local authority.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Form Card */}
@@ -132,7 +146,7 @@ export const ContractBuilder: React.FC = () => {
         <section className="mb-8">
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm font-bold">1</span>
-            Contract Details
+            Certificate Details
           </h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
@@ -492,9 +506,9 @@ export const ContractBuilder: React.FC = () => {
               <div className="text-center mb-10">
                 <div className="text-emerald-600 text-5xl mb-4">﷽</div>
                 <h1 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 mb-2">
-                  Certificate of Nikkah
+                  Nikkah Certificate
                 </h1>
-                <p className="text-emerald-700 font-medium">عقد النكاح</p>
+                <p className="text-emerald-700 font-medium">شهادة النكاح</p>
               </div>
 
               {/* Date & Location */}

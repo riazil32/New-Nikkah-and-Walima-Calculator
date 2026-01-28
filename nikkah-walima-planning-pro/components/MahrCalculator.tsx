@@ -227,7 +227,7 @@ export const MahrCalculator: React.FC = () => {
             <Scroll className="w-5 h-5" />
             <div>
               <p className="font-bold">Mahr value saved!</p>
-              <p className="text-sm text-emerald-100">Go to the Contract tab to continue</p>
+              <p className="text-sm text-emerald-100">Go to the Certificate tab to continue</p>
             </div>
             <button onClick={() => setShowContractCTA(false)} className="ml-2 p-1 hover:bg-emerald-500 rounded-full">
               <X className="w-4 h-4" />
@@ -265,7 +265,7 @@ export const MahrCalculator: React.FC = () => {
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold transition-colors flex items-center justify-center gap-2"
               >
                 <Scroll className="w-5 h-5" />
-                Use for Contract
+                Use for Certificate
               </button>
               <button 
                 onClick={() => setSelectedMahrInfo(null)}

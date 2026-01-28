@@ -59,7 +59,7 @@ const App: React.FC = () => {
                 }`}
               >
                 <Scroll className="w-5 h-5" />
-                Contract
+                Certificate
               </button>
             </div>
             
@@ -110,7 +110,7 @@ const App: React.FC = () => {
             }`}
           >
             <Scroll className="w-4 h-4" />
-            Contract
+            Certificate
           </button>
         </div>
       </div>
