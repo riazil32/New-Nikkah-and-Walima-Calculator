@@ -1,5 +1,7 @@
 
-export type TabType = 'budget' | 'mahr';
+export type TabType = 'budget' | 'mahr' | 'contract';
+
+export type MahrPaymentType = 'prompt' | 'deferred';
 
 export type Payer = 'joint' | 'groom' | 'bride';
 
@@ -36,4 +38,29 @@ export interface Currency {
   code: string;
   symbol: string;
   name: string;
+}
+
+export interface ContractData {
+  // Header Info
+  dateGregorian: string;
+  dateHijri: string;
+  location: string;
+  
+  // Groom Details
+  groomName: string;
+  groomFatherName: string;
+  
+  // Bride Details
+  brideName: string;
+  brideFatherName: string;
+  
+  // Mahr Details
+  mahrAmount: string;
+  mahrType: MahrPaymentType;
+  
+  // Witnesses
+  witness1Name: string;
+  witness2Name: string;
+  waliName: string;
+  officiantName: string;
 }

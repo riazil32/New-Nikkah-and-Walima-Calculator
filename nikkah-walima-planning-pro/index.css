@@ -28,3 +28,53 @@ body {
 .animate-pulse-subtle {
   animation: pulse-subtle 2s ease-in-out infinite;
 }
+
+/* Print styles for certificate */
+@media print {
+  /* Hide everything except the certificate */
+  body * {
+    visibility: hidden;
+  }
+  
+  #certificate-preview,
+  #certificate-preview * {
+    visibility: visible;
+  }
+  
+  #certificate-preview {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: white !important;
+  }
+  
+  /* Reset colors for printing */
+  #certificate-preview .bg-gradient-to-br {
+    background: white !important;
+  }
+  
+  #certificate-preview .bg-teal-50,
+  #certificate-preview .bg-rose-50,
+  #certificate-preview .bg-violet-50,
+  #certificate-preview .bg-emerald-50 {
+    background-color: #f9fafb !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  /* Ensure borders print */
+  #certificate-preview .border-emerald-600 {
+    border-color: #059669 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  /* Page settings */
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+}

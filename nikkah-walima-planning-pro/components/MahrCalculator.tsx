@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Info, Sparkles, X, ChevronRight } from './Icons';
+import { Info, Sparkles, X, ChevronRight, Scroll } from './Icons';
 import { MAHR_TYPES, SILVER_NISAB_DIVISOR, CURRENCIES } from '../constants';
 import { MahrType } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -28,6 +28,7 @@ export const MahrCalculator: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [sources, setSources] = useState<{title: string, uri: string}[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [showContractCTA, setShowContractCTA] = useState(false);
 
   const fetchLivePrice = async () => {
     setIsFetching(true);
@@ -70,6 +71,17 @@ export const MahrCalculator: React.FC = () => {
       setSilverPricePerGram(nisab / SILVER_NISAB_DIVISOR);
       setLastUpdated(null);
     }
+  };
+
+  const handleUseForContract = (mahr: MahrType) => {
+    const value = (mahr.grams * silverPricePerGram).toFixed(2);
+    const formattedValue = `${selectedCurrency.symbol}${parseFloat(value).toLocaleString()}`;
+    // Save to a temporary key that ContractBuilder can read
+    localStorage.setItem('mahr-selectedForContract', formattedValue);
+    setSelectedMahrInfo(null);
+    setShowContractCTA(true);
+    // Auto-hide after 5 seconds
+    setTimeout(() => setShowContractCTA(false), 5000);
   };
 
   return (
@@ -208,6 +220,22 @@ export const MahrCalculator: React.FC = () => {
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-emerald-500 rounded-full blur-[100px] opacity-20"></div>
       </div>
 
+      {/* Success Toast for Contract CTA */}
+      {showContractCTA && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top duration-300">
+          <div className="bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3">
+            <Scroll className="w-5 h-5" />
+            <div>
+              <p className="font-bold">Mahr value saved!</p>
+              <p className="text-sm text-emerald-100">Go to the Contract tab to continue</p>
+            </div>
+            <button onClick={() => setShowContractCTA(false)} className="ml-2 p-1 hover:bg-emerald-500 rounded-full">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {selectedMahrInfo && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedMahrInfo(null)}>
           <div className="bg-white dark:bg-slate-800 rounded-[2rem] p-8 max-w-lg w-full shadow-2xl animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
@@ -220,21 +248,32 @@ export const MahrCalculator: React.FC = () => {
                 <X className="w-6 h-6 text-slate-400" />
               </button>
             </div>
-            <div className="space-y-4 mb-8">
+            <div className="space-y-4 mb-6">
               <div className="bg-slate-50 dark:bg-slate-700 p-4 rounded-2xl text-slate-700 dark:text-slate-200 text-sm leading-relaxed border border-slate-100 dark:border-slate-600">
                 {selectedMahrInfo.details}
               </div>
               <div className="flex justify-between items-center px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl">
-                <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase">Calculated Weight</span>
-                <span className="font-mono font-bold text-emerald-900 dark:text-emerald-200">{selectedMahrInfo.grams}g Silver</span>
+                <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase">Calculated Value</span>
+                <span className="font-bold text-emerald-900 dark:text-emerald-200 text-lg">
+                  {selectedCurrency.symbol}{(selectedMahrInfo.grams * silverPricePerGram).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
               </div>
             </div>
-            <button 
-              onClick={() => setSelectedMahrInfo(null)}
-              className="w-full bg-slate-900 dark:bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 dark:hover:bg-emerald-500 transition-colors"
-            >
-              Understand and Close
-            </button>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => handleUseForContract(selectedMahrInfo)}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold transition-colors flex items-center justify-center gap-2"
+              >
+                <Scroll className="w-5 h-5" />
+                Use for Contract
+              </button>
+              <button 
+                onClick={() => setSelectedMahrInfo(null)}
+                className="w-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 py-3 rounded-2xl font-bold transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

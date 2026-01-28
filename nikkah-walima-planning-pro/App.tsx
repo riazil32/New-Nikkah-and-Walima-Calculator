@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { Sparkles, Calculator, Heart, Sun, Moon } from './components/Icons';
+import { Sparkles, Calculator, Heart, Sun, Moon, Scroll } from './components/Icons';
 import { BudgetPlanner } from './components/BudgetPlanner';
 import { MahrCalculator } from './components/MahrCalculator';
+import { ContractBuilder } from './components/ContractBuilder';
 import { useTheme } from './hooks/useTheme';
 import { TabType } from './types';
 
@@ -29,25 +30,36 @@ const App: React.FC = () => {
             <div className="hidden md:flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-600">
               <button
                 onClick={() => setActiveTab('budget')}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
                   activeTab === 'budget' 
                     ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
               >
                 <Calculator className="w-5 h-5" />
-                Budget Planner
+                Budget
               </button>
               <button
                 onClick={() => setActiveTab('mahr')}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
                   activeTab === 'mahr' 
                     ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
               >
                 <Heart className="w-5 h-5" />
-                Mahr Calculator
+                Mahr
+              </button>
+              <button
+                onClick={() => setActiveTab('contract')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
+                  activeTab === 'contract' 
+                    ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
+              >
+                <Scroll className="w-5 h-5" />
+                Contract
               </button>
             </div>
             
@@ -65,29 +77,40 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="pb-24">
-        {activeTab === 'budget' ? <BudgetPlanner /> : <MahrCalculator />}
+        {activeTab === 'budget' && <BudgetPlanner />}
+        {activeTab === 'mahr' && <MahrCalculator />}
+        {activeTab === 'contract' && <ContractBuilder />}
       </main>
 
       {/* Mobile Sticky Navigation */}
-      <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md">
+      <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg">
         <div className="bg-slate-900/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-[2rem] p-2 flex border border-white/10 shadow-2xl">
           <button
             onClick={() => setActiveTab('budget')}
-            className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.5rem] font-bold text-sm transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.5rem] font-bold text-xs transition-all ${
               activeTab === 'budget' ? 'bg-emerald-600 text-white' : 'text-slate-400'
             }`}
           >
-            <Calculator className="w-5 h-5" />
+            <Calculator className="w-4 h-4" />
             Budget
           </button>
           <button
             onClick={() => setActiveTab('mahr')}
-            className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.5rem] font-bold text-sm transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.5rem] font-bold text-xs transition-all ${
               activeTab === 'mahr' ? 'bg-emerald-600 text-white' : 'text-slate-400'
             }`}
           >
-            <Heart className="w-5 h-5" />
+            <Heart className="w-4 h-4" />
             Mahr
+          </button>
+          <button
+            onClick={() => setActiveTab('contract')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.5rem] font-bold text-xs transition-all ${
+              activeTab === 'contract' ? 'bg-emerald-600 text-white' : 'text-slate-400'
+            }`}
+          >
+            <Scroll className="w-4 h-4" />
+            Contract
           </button>
         </div>
       </div>
