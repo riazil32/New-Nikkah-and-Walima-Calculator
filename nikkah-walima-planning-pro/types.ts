@@ -78,6 +78,7 @@ export interface WeddingEvent {
   startTime: string; // HH:MM format
   endTime: string; // HH:MM format
   description?: string;
+  icon?: string; // Emoji icon for visual identification
   type: 'custom';
 }
 

@@ -19,12 +19,14 @@ const getDefaultTimelineData = (): TimelineData => ({
 // Common event presets for quick adding
 const EVENT_PRESETS = [
   { name: 'Guests Arrive', icon: '🚗', duration: 30 },
+  { name: 'Entrance (Baraat/Zaffe)', icon: '🎉', duration: 30 },
   { name: 'Nikkah Ceremony', icon: '💍', duration: 30 },
   { name: 'Photography', icon: '📸', duration: 60 },
   { name: 'Food Service', icon: '🍽️', duration: 90 },
   { name: 'Cake Cutting', icon: '🎂', duration: 15 },
   { name: 'Speeches', icon: '🎤', duration: 30 },
   { name: 'Entertainment', icon: '🎵', duration: 60 },
+  { name: 'Prayer Break', icon: '🤲', duration: 15 },
   { name: 'Guest Departure', icon: '👋', duration: 30 },
 ];
 
@@ -52,21 +54,44 @@ const formatTimeDisplay = (time: string): string => {
   return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
 };
 
-// Check if an event conflicts with any prayer time
-const checkConflict = (event: WeddingEvent, prayerTimes: PrayerTime[]): PrayerTime | null => {
+// Check if an event crosses midnight (end time is "next day")
+const isCrossMidnight = (startTime: string, endTime: string): boolean => {
+  return timeToMinutes(endTime) < timeToMinutes(startTime);
+};
+
+// Check if an event is prayer-related (should show green message instead of red warning)
+const isPrayerRelatedEvent = (eventName: string): boolean => {
+  const lowerName = eventName.toLowerCase();
+  return lowerName.includes('prayer') || lowerName.includes('salah') || lowerName.includes('namaz');
+};
+
+// Get effective end time in minutes (accounting for cross-midnight)
+const getEffectiveEndMinutes = (startTime: string, endTime: string): number => {
+  const endMinutes = timeToMinutes(endTime);
+  if (isCrossMidnight(startTime, endTime)) {
+    return endMinutes + 24 * 60; // Add 24 hours for next day
+  }
+  return endMinutes;
+};
+
+// Check if an event conflicts with ANY prayer times (returns ALL conflicts)
+const checkConflicts = (event: WeddingEvent, prayerTimes: PrayerTime[]): PrayerTime[] => {
   const eventStart = timeToMinutes(event.startTime);
-  const eventEnd = timeToMinutes(event.endTime);
+  const eventEnd = getEffectiveEndMinutes(event.startTime, event.endTime);
+  const conflicts: PrayerTime[] = [];
   
   for (const prayer of prayerTimes) {
     const prayerStart = timeToMinutes(prayer.time);
     const prayerEnd = prayerStart + PRAYER_BUFFER_MINUTES;
     
     // Check if event overlaps with prayer time window
+    // For cross-midnight events, we need to check both today's and conceptually tomorrow's prayers
     if (eventStart < prayerEnd && eventEnd > prayerStart) {
-      return prayer;
+      conflicts.push(prayer);
     }
   }
-  return null;
+  
+  return conflicts;
 };
 
 // Generate a unique ID
@@ -97,8 +122,12 @@ export const TimelinePlanner: React.FC = () => {
     name: '',
     startTime: '12:00',
     endTime: '13:00',
-    description: ''
+    description: '',
+    icon: ''
   });
+  
+  // Form validation state
+  const [formTouched, setFormTouched] = useState(false);
 
   // Fetch prayer times - uses ref to ensure latest values (avoids React state timing issues)
   const handleFetchPrayerTimes = () => {
@@ -146,8 +175,8 @@ export const TimelinePlanner: React.FC = () => {
   };
 
   // Merge and sort all timeline items chronologically
-  const sortedTimeline = useMemo((): (TimelineItem & { conflict?: PrayerTime })[] => {
-    const items: (TimelineItem & { conflict?: PrayerTime })[] = [];
+  const sortedTimeline = useMemo((): (TimelineItem & { conflicts?: PrayerTime[]; crossesMidnight?: boolean; isPrayerEvent?: boolean })[] => {
+    const items: (TimelineItem & { conflicts?: PrayerTime[]; crossesMidnight?: boolean; isPrayerEvent?: boolean })[] = [];
     
     // Add prayer times
     prayerTimes.forEach(prayer => {
@@ -156,11 +185,18 @@ export const TimelinePlanner: React.FC = () => {
     
     // Add events with conflict info
     timelineData.events.forEach(event => {
-      const conflict = checkConflict(event, prayerTimes);
-      items.push({ ...event, conflict: conflict || undefined });
+      const conflicts = checkConflicts(event, prayerTimes);
+      const crossesMidnight = isCrossMidnight(event.startTime, event.endTime);
+      const isPrayerEvent = isPrayerRelatedEvent(event.name);
+      items.push({ 
+        ...event, 
+        conflicts: conflicts.length > 0 ? conflicts : undefined,
+        crossesMidnight,
+        isPrayerEvent
+      });
     });
     
-    // Sort by time
+    // Sort by time (cross-midnight events sort by start time)
     items.sort((a, b) => {
       const timeA = a.type === 'fixed' ? (a as PrayerTime).time : (a as WeddingEvent).startTime;
       const timeB = b.type === 'fixed' ? (b as PrayerTime).time : (b as WeddingEvent).startTime;
@@ -172,6 +208,7 @@ export const TimelinePlanner: React.FC = () => {
 
   // Add/Update event
   const handleSaveEvent = () => {
+    setFormTouched(true);
     if (!eventForm.name || !eventForm.startTime || !eventForm.endTime) return;
     
     const newEvent: WeddingEvent = {
@@ -180,6 +217,7 @@ export const TimelinePlanner: React.FC = () => {
       startTime: eventForm.startTime,
       endTime: eventForm.endTime,
       description: eventForm.description,
+      icon: eventForm.icon || undefined,
       type: 'custom'
     };
     
@@ -214,12 +252,14 @@ export const TimelinePlanner: React.FC = () => {
       name: event.name,
       startTime: event.startTime,
       endTime: event.endTime,
-      description: event.description || ''
+      description: event.description || '',
+      icon: event.icon || ''
     });
+    setFormTouched(false);
     setShowEventModal(true);
   };
 
-  // Quick add from preset
+  // Quick add from preset (used from Quick Add panel)
   const handleQuickAdd = (preset: typeof EVENT_PRESETS[0]) => {
     const startMinutes = 12 * 60; // Default to noon
     const endMinutes = startMinutes + preset.duration;
@@ -228,17 +268,105 @@ export const TimelinePlanner: React.FC = () => {
       name: preset.name,
       startTime: minutesToTime(startMinutes),
       endTime: minutesToTime(endMinutes),
-      description: ''
+      description: '',
+      icon: preset.icon
     });
+    setFormTouched(false);
     setShowPresets(false);
     setShowEventModal(true);
+  };
+
+  // Quick add preset directly in modal
+  const applyPresetToForm = (preset: typeof EVENT_PRESETS[0]) => {
+    const startMinutes = timeToMinutes(eventForm.startTime);
+    const endMinutes = startMinutes + preset.duration;
+    
+    setEventForm(prev => ({
+      ...prev,
+      name: preset.name,
+      endTime: minutesToTime(endMinutes),
+      icon: preset.icon
+    }));
   };
 
   // Close modal and reset
   const closeEventModal = () => {
     setShowEventModal(false);
     setEditingEvent(null);
-    setEventForm({ name: '', startTime: '12:00', endTime: '13:00', description: '' });
+    setFormTouched(false);
+    setEventForm({ name: '', startTime: '12:00', endTime: '13:00', description: '', icon: '' });
+  };
+
+  // Open modal with pre-filled start time (for Smart Gap buttons)
+  // Optional nextEventTime to calculate a smart end time (5 min before next event)
+  const openModalWithStartTime = (startTime: string, nextEventTime?: string) => {
+    const startMinutes = timeToMinutes(startTime);
+    let endMinutes = startMinutes + 30; // Default 30 min duration
+    
+    // If there's a next event, end 5 min before it (but at least 15 min duration)
+    if (nextEventTime) {
+      const nextMinutes = timeToMinutes(nextEventTime);
+      const smartEnd = nextMinutes - 5;
+      if (smartEnd - startMinutes >= 15) {
+        endMinutes = smartEnd;
+      }
+    }
+    
+    setEventForm({
+      name: '',
+      startTime,
+      endTime: minutesToTime(endMinutes),
+      description: '',
+      icon: ''
+    });
+    setFormTouched(false);
+    setShowEventModal(true);
+  };
+
+  // Get the effective end time of a timeline item in minutes
+  const getItemEndMinutes = (item: TimelineItem): number => {
+    if (item.type === 'fixed') {
+      return timeToMinutes((item as PrayerTime).time) + PRAYER_BUFFER_MINUTES;
+    }
+    return getEffectiveEndMinutes((item as WeddingEvent).startTime, (item as WeddingEvent).endTime);
+  };
+
+  // Get the start time of a timeline item in minutes
+  const getItemStartMinutes = (item: TimelineItem): number => {
+    if (item.type === 'fixed') {
+      return timeToMinutes((item as PrayerTime).time);
+    }
+    return timeToMinutes((item as WeddingEvent).startTime);
+  };
+
+  // Calculate the smart start time for a new event after a given index
+  // This finds the MAX end time among all items up to (and including) the current index
+  // to handle overlapping events (e.g., Prayer Break covering a prayer time)
+  const getSmartStartTime = (currentIndex: number): string => {
+    let maxEndMinutes = 0;
+    
+    // Check all items up to and including the current index
+    for (let i = 0; i <= currentIndex; i++) {
+      const item = sortedTimeline[i];
+      const endMinutes = getItemEndMinutes(item);
+      maxEndMinutes = Math.max(maxEndMinutes, endMinutes);
+    }
+    
+    return minutesToTime(maxEndMinutes);
+  };
+
+  // Calculate gaps between timeline items for Smart Gap buttons
+  const getGapInfo = (currentIndex: number, nextItem: TimelineItem | undefined): { gap: number; startTime: string } | null => {
+    if (!nextItem) return null;
+    
+    // Get the smart start time (MAX of all end times up to this point)
+    const smartStartTime = getSmartStartTime(currentIndex);
+    const smartStartMinutes = timeToMinutes(smartStartTime);
+    
+    const nextStartMinutes = getItemStartMinutes(nextItem);
+    
+    const gap = nextStartMinutes - smartStartMinutes;
+    return gap >= 15 ? { gap, startTime: smartStartTime } : null;
   };
 
   // Check if we have required data
@@ -500,7 +628,7 @@ export const TimelinePlanner: React.FC = () => {
 
             {sortedTimeline.length === 0 ? (
               <div className="text-center py-12 text-slate-500 dark:text-slate-400">
-                <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <Clock className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
                 <p>Add events to build your timeline</p>
               </div>
             ) : (
@@ -510,14 +638,25 @@ export const TimelinePlanner: React.FC = () => {
 
                 {/* Timeline items */}
                 <div className="space-y-4">
-                  {sortedTimeline.map((item, index) => (
-                    <div key={item.type === 'fixed' ? `prayer-${item.name}` : (item as WeddingEvent).id} className="relative pl-12 md:pl-16">
+                  {sortedTimeline.map((item, index) => {
+                    const nextItem = sortedTimeline[index + 1];
+                    // Use smart gap calculation that respects overlapping events
+                    const gapInfo = getGapInfo(index, nextItem);
+                    const nextEventStartTime = nextItem
+                      ? (nextItem.type === 'fixed' ? (nextItem as PrayerTime).time : (nextItem as WeddingEvent).startTime)
+                      : undefined;
+                    
+                    return (
+                    <React.Fragment key={item.type === 'fixed' ? `prayer-${item.name}` : (item as WeddingEvent).id}>
+                    <div className="relative pl-12 md:pl-16">
                       {/* Timeline dot */}
                       <div className={`absolute left-2 md:left-4 w-4 h-4 rounded-full border-2 ${
                         item.type === 'fixed'
                           ? 'bg-amber-100 border-amber-500'
-                          : (item as any).conflict
-                            ? 'bg-red-100 border-red-500'
+                          : (item as any).conflicts?.length > 0
+                            ? (item as any).isPrayerEvent
+                              ? 'bg-emerald-100 border-emerald-500' // Green dot for prayer events
+                              : 'bg-red-100 border-red-500'
                             : 'bg-emerald-100 border-emerald-500'
                       }`} />
 
@@ -544,27 +683,52 @@ export const TimelinePlanner: React.FC = () => {
                       ) : (
                         // Custom Event Card
                         <div className={`rounded-2xl p-4 ${
-                          (item as any).conflict
-                            ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700'
+                          (item as any).conflicts?.length > 0
+                            ? (item as any).isPrayerEvent
+                              ? 'bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-300 dark:border-emerald-700'
+                              : 'bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700'
                             : 'bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600'
                         }`}>
-                          {/* Conflict Warning */}
-                          {(item as any).conflict && (
-                            <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-semibold mb-2">
-                              <AlertTriangle className="w-4 h-4" />
-                              Clashes with {(item as any).conflict.name} ({formatTimeDisplay((item as any).conflict.time)})
-                            </div>
+                          {/* Conflict Message - green for prayer events, red for others */}
+                          {(item as any).conflicts?.length > 0 && (
+                            (item as any).isPrayerEvent ? (
+                              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold mb-2">
+                                <span>✓</span>
+                                <span>Scheduled during prayer time</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-semibold mb-2">
+                                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                <span>
+                                  Clashes with {(item as any).conflicts.map((c: PrayerTime, i: number) => (
+                                    <span key={c.name}>
+                                      {i > 0 && (i === (item as any).conflicts.length - 1 ? ' & ' : ', ')}
+                                      {c.name}
+                                    </span>
+                                  ))}
+                                </span>
+                              </div>
+                            )
                           )}
                           
                           <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-bold text-slate-800 dark:text-white">{(item as WeddingEvent).name}</p>
-                              <p className="text-sm text-slate-600 dark:text-slate-400">
-                                {formatTimeDisplay((item as WeddingEvent).startTime)} - {formatTimeDisplay((item as WeddingEvent).endTime)}
-                              </p>
-                              {(item as WeddingEvent).description && (
-                                <p className="text-sm text-slate-500 dark:text-slate-500 mt-1">{(item as WeddingEvent).description}</p>
+                            <div className="flex items-center gap-3">
+                              {/* Event Icon */}
+                              {(item as WeddingEvent).icon && (
+                                <span className="text-2xl">{(item as WeddingEvent).icon}</span>
                               )}
+                              <div>
+                                <p className="font-bold text-slate-800 dark:text-white">{(item as WeddingEvent).name}</p>
+                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                  {formatTimeDisplay((item as WeddingEvent).startTime)} - {formatTimeDisplay((item as WeddingEvent).endTime)}
+                                  {(item as any).crossesMidnight && (
+                                    <span className="ml-1 text-xs text-amber-600 dark:text-amber-400 font-medium">(+1 day)</span>
+                                  )}
+                                </p>
+                                {(item as WeddingEvent).description && (
+                                  <p className="text-sm text-slate-500 dark:text-slate-500 mt-1">{(item as WeddingEvent).description}</p>
+                                )}
+                              </div>
                             </div>
                             <div className="flex gap-2">
                               <button
@@ -584,7 +748,22 @@ export const TimelinePlanner: React.FC = () => {
                         </div>
                       )}
                     </div>
-                  ))}
+                    
+                    {/* Smart Gap Button - shows when there's a 15+ min gap to next item */}
+                    {gapInfo && (
+                      <div className="relative pl-12 md:pl-16 py-2">
+                        <button
+                          onClick={() => openModalWithStartTime(gapInfo.startTime, nextEventStartTime)}
+                          className="w-full py-2 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-xl text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-2 text-sm"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add event here ({Math.floor(gapInfo.gap / 60) > 0 ? `${Math.floor(gapInfo.gap / 60)}h ` : ''}{gapInfo.gap % 60 > 0 ? `${gapInfo.gap % 60}m` : ''} gap)
+                        </button>
+                      </div>
+                    )}
+                    </React.Fragment>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -608,8 +787,8 @@ export const TimelinePlanner: React.FC = () => {
       {/* Add/Edit Event Modal */}
       {showEventModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={closeEventModal}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
               <h4 className="font-bold text-slate-800 dark:text-white text-lg">
                 {editingEvent ? 'Edit Event' : 'Add Event'}
               </h4>
@@ -621,6 +800,25 @@ export const TimelinePlanner: React.FC = () => {
               </button>
             </div>
 
+            {/* Quick Add Chips (only when adding new event) */}
+            {!editingEvent && (
+              <div className="mb-4">
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Quick Add:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {EVENT_PRESETS.map(preset => (
+                    <button
+                      key={preset.name}
+                      onClick={() => applyPresetToForm(preset)}
+                      className="px-2 py-1 text-xs bg-slate-100 dark:bg-slate-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-slate-600 dark:text-slate-300 rounded-lg transition-all flex items-center gap-1"
+                    >
+                      <span>{preset.icon}</span>
+                      <span>{preset.name.split(' ')[0]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
@@ -631,8 +829,15 @@ export const TimelinePlanner: React.FC = () => {
                   value={eventForm.name}
                   onChange={(e) => setEventForm(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="e.g., Nikkah Ceremony"
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white placeholder:text-slate-400"
+                  className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white placeholder:text-slate-400 ${
+                    formTouched && !eventForm.name 
+                      ? 'border-red-400 dark:border-red-500' 
+                      : 'border-transparent focus:border-emerald-400'
+                  }`}
                 />
+                {formTouched && !eventForm.name && (
+                  <p className="text-xs text-red-500 mt-1">Event name is required</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -644,7 +849,11 @@ export const TimelinePlanner: React.FC = () => {
                     type="time"
                     value={eventForm.startTime}
                     onChange={(e) => setEventForm(prev => ({ ...prev, startTime: e.target.value }))}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white"
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white ${
+                      formTouched && !eventForm.startTime 
+                        ? 'border-red-400 dark:border-red-500' 
+                        : 'border-transparent focus:border-emerald-400'
+                    }`}
                   />
                 </div>
                 <div>
@@ -655,7 +864,11 @@ export const TimelinePlanner: React.FC = () => {
                     type="time"
                     value={eventForm.endTime}
                     onChange={(e) => setEventForm(prev => ({ ...prev, endTime: e.target.value }))}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white"
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white ${
+                      formTouched && !eventForm.endTime 
+                        ? 'border-red-400 dark:border-red-500' 
+                        : 'border-transparent focus:border-emerald-400'
+                    }`}
                   />
                 </div>
               </div>
@@ -677,12 +890,7 @@ export const TimelinePlanner: React.FC = () => {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleSaveEvent}
-                disabled={!eventForm.name || !eventForm.startTime || !eventForm.endTime}
-                className={`flex-1 py-3 px-6 font-bold rounded-xl transition-all ${
-                  eventForm.name && eventForm.startTime && eventForm.endTime
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                    : 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
-                }`}
+                className="flex-1 py-3 px-6 font-bold rounded-xl transition-all bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 {editingEvent ? 'Save Changes' : 'Add Event'}
               </button>
