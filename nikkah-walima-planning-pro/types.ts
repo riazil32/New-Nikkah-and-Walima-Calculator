@@ -1,5 +1,5 @@
 
-export type TabType = 'budget' | 'mahr' | 'contract' | 'timeline';
+export type TabType = 'budget' | 'mahr' | 'contract' | 'timeline' | 'duas' | 'guests';
 
 export type MahrPaymentType = 'prompt' | 'deferred';
 
@@ -92,3 +92,58 @@ export interface TimelineData {
 }
 
 export type TimelineItem = PrayerTime | WeddingEvent;
+
+// Guest Manager Types
+export type GuestSide = 'groom' | 'bride' | 'joint';
+export type GuestGender = 'male' | 'female';
+export type GuestType = 'adult' | 'child';
+export type GuestRole = 'guest' | 'vip' | 'bridesmaid' | 'groomsman' | 'colleague' | 'wali' | 'witness';
+export type WeddingEventType = 'nikkah' | 'walima' | 'mehndi' | 'dholki' | 'civil' | string;
+
+export interface Guest {
+  id: string;
+  name: string;
+  side: GuestSide;
+  gender: GuestGender;
+  type: GuestType;
+  role: GuestRole; // Guest role/category
+  groupId?: string; // If part of a family/group
+  // Which events this guest is invited to
+  invitedTo: string[]; // e.g., ['nikkah', 'walima']
+  // Per-event seating assignments (Phase 2)
+  seating: {
+    [eventId: string]: string | null; // e.g., { walima: 'table-5', nikkah: null }
+  };
+  // Optional contact info (for future WhatsApp features)
+  phone?: string;
+  email?: string;
+  // Optional notes
+  notes?: string;
+  // Timestamps
+  createdAt: string;
+}
+
+// Family/Household grouping
+export interface GuestGroup {
+  id: string;
+  name: string; // e.g., "The Khan Family"
+  memberIds: string[]; // Array of Guest IDs in this group
+  createdAt: string;
+}
+
+// The wedding events that can be planned
+export interface WeddingEventConfig {
+  id: string;
+  name: string;
+  icon: string;
+  enabled: boolean;
+  isCustom?: boolean;
+}
+
+// Guest Manager settings and state
+export interface GuestManagerData {
+  guests: Guest[];
+  groups: GuestGroup[]; // Family/household groups
+  events: WeddingEventConfig[];
+  segregationMode: boolean; // Whether to enforce gender-based seating
+}

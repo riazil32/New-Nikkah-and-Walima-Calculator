@@ -119,11 +119,11 @@ export const ContractBuilder: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8 scroll-mt-24">
       {/* Header */}
       <div className="text-center mb-6">
-        <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">Nikkah Certificate Designer</h2>
-        <p className="text-slate-600 dark:text-slate-400 italic">"And among His signs is that He created for you mates from among yourselves." - Quran 30:21</p>
+        <h2 className="text-2xl sm:text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">Nikkah Certificate Designer</h2>
+        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 italic">"And among His signs is that He created for you mates from among yourselves." - Quran 30:21</p>
       </div>
 
       {/* Disclaimer Banner */}
@@ -291,8 +291,8 @@ export const ContractBuilder: React.FC = () => {
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                   Payment Type <span className="text-red-500">*</span>
                 </label>
-                <div className="flex gap-4">
-                  <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+                  <label className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
                     contractData.mahrType === 'prompt' 
                       ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-400 text-violet-700 dark:text-violet-300' 
                       : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-violet-300'
@@ -306,9 +306,9 @@ export const ContractBuilder: React.FC = () => {
                       className="sr-only"
                     />
                     <span className="font-semibold">Prompt</span>
-                    <span className="text-xs">(Mu'ajjal)</span>
+                    <span className="text-xs whitespace-nowrap">(Mu'ajjal)</span>
                   </label>
-                  <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  <label className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
                     contractData.mahrType === 'deferred' 
                       ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-400 text-violet-700 dark:text-violet-300' 
                       : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-violet-300'
@@ -322,7 +322,7 @@ export const ContractBuilder: React.FC = () => {
                       className="sr-only"
                     />
                     <span className="font-semibold">Deferred</span>
-                    <span className="text-xs">(Mu'wajjal)</span>
+                    <span className="text-xs whitespace-nowrap">(Mu'wajjal)</span>
                   </label>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">

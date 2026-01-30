@@ -1,10 +1,12 @@
 
 import React, { useState } from 'react';
-import { Sparkles, Calculator, Heart, Sun, Moon, Scroll, Clock } from './components/Icons';
+import { Sparkles, Calculator, Heart, Sun, Moon, Scroll, Clock, BookOpen, Users } from './components/Icons';
 import { BudgetPlanner } from './components/BudgetPlanner';
 import { MahrCalculator } from './components/MahrCalculator';
 import { ContractBuilder } from './components/ContractBuilder';
 import { TimelinePlanner } from './components/TimelinePlanner';
+import { DuasPage } from './components/DuasPage';
+import { GuestManager } from './components/GuestManager';
 import { useTheme } from './hooks/useTheme';
 import { TabType } from './types';
 
@@ -13,7 +15,7 @@ const App: React.FC = () => {
   const [theme, toggleTheme] = useTheme();
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900 dark:selection:bg-emerald-900 dark:selection:text-emerald-100 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900 dark:selection:bg-emerald-900 dark:selection:text-emerald-100 transition-colors duration-300 scroll-smooth">
       {/* Header */}
       <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200 dark:border-slate-700">
         <div className="max-w-6xl mx-auto px-4 h-20 flex items-center justify-between">
@@ -73,6 +75,28 @@ const App: React.FC = () => {
                 <Clock className="w-5 h-5" />
                 Timeline
               </button>
+              <button
+                onClick={() => setActiveTab('duas')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
+                  activeTab === 'duas' 
+                    ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
+              >
+                <BookOpen className="w-5 h-5" />
+                Duas
+              </button>
+              <button
+                onClick={() => setActiveTab('guests')}
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
+                  activeTab === 'guests' 
+                    ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
+              >
+                <Users className="w-5 h-5" />
+                Guests
+              </button>
             </div>
             
             {/* Theme Toggle */}
@@ -93,46 +117,66 @@ const App: React.FC = () => {
         {activeTab === 'mahr' && <MahrCalculator />}
         {activeTab === 'contract' && <ContractBuilder />}
         {activeTab === 'timeline' && <TimelinePlanner />}
+        {activeTab === 'duas' && <DuasPage />}
+        {activeTab === 'guests' && <GuestManager />}
       </main>
 
-      {/* Mobile Sticky Navigation */}
-      <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg">
-        <div className="bg-slate-900/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-[2rem] p-2 flex border border-white/10 shadow-2xl">
+      {/* Mobile Sticky Navigation - Floating pill with vertical icon+label */}
+      <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-sm">
+        <div className="bg-slate-900/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-[2rem] p-1.5 flex border border-white/10 shadow-2xl">
           <button
             onClick={() => setActiveTab('budget')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.5rem] font-bold text-xs transition-all ${
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-[1.5rem] font-bold transition-all ${
               activeTab === 'budget' ? 'bg-emerald-600 text-white' : 'text-slate-400'
             }`}
           >
-            <Calculator className="w-4 h-4" />
-            Budget
+            <Calculator className="w-5 h-5" />
+            <span className="text-[10px]">Budget</span>
           </button>
           <button
             onClick={() => setActiveTab('mahr')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.5rem] font-bold text-xs transition-all ${
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-[1.5rem] font-bold transition-all ${
               activeTab === 'mahr' ? 'bg-emerald-600 text-white' : 'text-slate-400'
             }`}
           >
-            <Heart className="w-4 h-4" />
-            Mahr
+            <Heart className="w-5 h-5" />
+            <span className="text-[10px]">Mahr</span>
           </button>
           <button
             onClick={() => setActiveTab('contract')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.5rem] font-bold text-xs transition-all ${
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-[1.5rem] font-bold transition-all ${
               activeTab === 'contract' ? 'bg-emerald-600 text-white' : 'text-slate-400'
             }`}
           >
-            <Scroll className="w-4 h-4" />
-            Certificate
+            <Scroll className="w-5 h-5" />
+            <span className="text-[10px]">Certificate</span>
           </button>
           <button
             onClick={() => setActiveTab('timeline')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.5rem] font-bold text-xs transition-all ${
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-[1.5rem] font-bold transition-all ${
               activeTab === 'timeline' ? 'bg-emerald-600 text-white' : 'text-slate-400'
             }`}
           >
-            <Clock className="w-4 h-4" />
-            Timeline
+            <Clock className="w-5 h-5" />
+            <span className="text-[10px]">Timeline</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('duas')}
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-[1.5rem] font-bold transition-all ${
+              activeTab === 'duas' ? 'bg-emerald-600 text-white' : 'text-slate-400'
+            }`}
+          >
+            <BookOpen className="w-5 h-5" />
+            <span className="text-[10px]">Duas</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('guests')}
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-[1.5rem] font-bold transition-all ${
+              activeTab === 'guests' ? 'bg-emerald-600 text-white' : 'text-slate-400'
+            }`}
+          >
+            <Users className="w-5 h-5" />
+            <span className="text-[10px]">Guests</span>
           </button>
         </div>
       </div>

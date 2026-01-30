@@ -13,6 +13,27 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Scroll padding to account for sticky header on mobile */
+html {
+  scroll-padding-top: 6rem;
+}
+
+/* iOS Safari overscroll fix */
+@supports (-webkit-touch-callout: none) {
+  html, body {
+    height: -webkit-fill-available;
+  }
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Subtle pulse animation for tooltip */
 @keyframes pulse-subtle {
   0%, 100% {
