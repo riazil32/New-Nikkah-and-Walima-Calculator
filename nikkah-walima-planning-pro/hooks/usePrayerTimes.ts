@@ -55,6 +55,12 @@ interface UsePrayerTimesResult {
 // Prayer names we care about for weddings (excluding Fajr as most weddings are daytime)
 const RELEVANT_PRAYERS = ['Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
+// Check if a date is a Friday (for Jummah)
+const isFriday = (dateString: string): boolean => {
+  const date = new Date(dateString);
+  return date.getDay() === 5; // 0 = Sunday, 5 = Friday
+};
+
 // Format time from 24h to 12h format
 const formatTime = (time24: string): string => {
   const [hours, minutes] = time24.split(':').map(Number);
@@ -106,9 +112,13 @@ export const usePrayerTimes = (): UsePrayerTimesResult => {
         throw new Error('Invalid response from prayer times API');
       }
 
+      // Check if it's Friday (Jummah replaces Dhuhr)
+      const isJummahDay = isFriday(date);
+
       // Extract relevant prayer times
       const times: PrayerTime[] = RELEVANT_PRAYERS.map(prayer => ({
-        name: prayer,
+        // On Friday, rename Dhuhr to Jummah
+        name: prayer === 'Dhuhr' && isJummahDay ? 'Jummah' : prayer,
         time: data.data.timings[prayer].split(' ')[0], // Remove timezone if present
         type: 'fixed' as const
       }));

@@ -32,6 +32,12 @@ const EVENT_PRESETS = [
 
 // Prayer duration buffer in minutes (for conflict detection)
 const PRAYER_BUFFER_MINUTES = 15;
+const JUMMAH_BUFFER_MINUTES = 45; // Jummah includes khutbah + prayer
+
+// Get prayer buffer based on prayer name
+const getPrayerBuffer = (prayerName: string): number => {
+  return prayerName === 'Jummah' ? JUMMAH_BUFFER_MINUTES : PRAYER_BUFFER_MINUTES;
+};
 
 // Convert HH:MM to minutes from midnight
 const timeToMinutes = (time: string): number => {
@@ -82,7 +88,7 @@ const checkConflicts = (event: WeddingEvent, prayerTimes: PrayerTime[]): PrayerT
   
   for (const prayer of prayerTimes) {
     const prayerStart = timeToMinutes(prayer.time);
-    const prayerEnd = prayerStart + PRAYER_BUFFER_MINUTES;
+    const prayerEnd = prayerStart + getPrayerBuffer(prayer.name);
     
     // Check if event overlaps with prayer time window
     // For cross-midnight events, we need to check both today's and conceptually tomorrow's prayers
@@ -326,7 +332,8 @@ export const TimelinePlanner: React.FC = () => {
   // Get the effective end time of a timeline item in minutes
   const getItemEndMinutes = (item: TimelineItem): number => {
     if (item.type === 'fixed') {
-      return timeToMinutes((item as PrayerTime).time) + PRAYER_BUFFER_MINUTES;
+      const prayer = item as PrayerTime;
+      return timeToMinutes(prayer.time) + getPrayerBuffer(prayer.name);
     }
     return getEffectiveEndMinutes((item as WeddingEvent).startTime, (item as WeddingEvent).endTime);
   };
