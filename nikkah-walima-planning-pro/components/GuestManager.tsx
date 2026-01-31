@@ -348,6 +348,15 @@ export const GuestManager: React.FC = () => {
     const group = data.groups.find(g => g.id === groupId);
     if (!group) return;
 
+    // Check if there's already an empty-name member being edited in this group
+    // If so, just focus on that one instead of creating another
+    const existingEmptyMember = data.guests.find(g => g.groupId === groupId && g.name.trim() === '');
+    if (existingEmptyMember) {
+      setExpandedGroups(prev => new Set([...prev, groupId]));
+      setEditingGuest(existingEmptyMember);
+      return;
+    }
+
     // Find first member to inherit from
     const firstMember = data.guests.find(g => g.groupId === groupId);
     
@@ -380,10 +389,42 @@ export const GuestManager: React.FC = () => {
 
   // Update guest
   const handleUpdateGuest = (updatedGuest: Guest) => {
+    // Don't save if name is empty
+    if (!updatedGuest.name.trim()) return;
+    
     setData(prev => ({
       ...prev,
       guests: prev.guests.map(g => g.id === updatedGuest.id ? updatedGuest : g)
     }));
+    setEditingGuest(null);
+  };
+
+  // Cancel editing - clean up empty-name guests
+  const handleCancelEdit = (guestId: string) => {
+    const guest = data.guests.find(g => g.id === guestId);
+    
+    // If the guest has no name (was just created via + button), delete them
+    if (guest && !guest.name.trim()) {
+      setData(prev => {
+        let newGroups = prev.groups;
+        
+        // If guest was in a group, update the group
+        if (guest.groupId) {
+          newGroups = prev.groups.map(g => 
+            g.id === guest.groupId 
+              ? { ...g, memberIds: g.memberIds.filter(mid => mid !== guestId) }
+              : g
+          ).filter(g => g.memberIds.length > 0);
+        }
+        
+        return {
+          ...prev,
+          guests: prev.guests.filter(g => g.id !== guestId),
+          groups: newGroups
+        };
+      });
+    }
+    
     setEditingGuest(null);
   };
 
@@ -900,7 +941,7 @@ export const GuestManager: React.FC = () => {
                           isEditing={editingGuest?.id === guest.id}
                           editingGuest={editingGuest}
                           onSave={handleUpdateGuest}
-                          onCancelEdit={() => setEditingGuest(null)}
+                          onCancelEdit={() => handleCancelEdit(guest.id)}
                         />
                       ))}
                     </div>
@@ -923,7 +964,7 @@ export const GuestManager: React.FC = () => {
                       isEditing={editingGuest?.id === guest.id}
                       editingGuest={editingGuest}
                       onSave={handleUpdateGuest}
-                      onCancelEdit={() => setEditingGuest(null)}
+                      onCancelEdit={() => handleCancelEdit(guest.id)}
                     />
                   ))}
                 </div>
@@ -1061,29 +1102,34 @@ const GuestRow: React.FC<GuestRowProps> = ({
 
   if (isEditing) {
     return (
-      <div className="p-4 bg-blue-50/50 dark:bg-blue-900/10">
-        <div className="space-y-3">
-          {/* Desktop: Single row | Mobile: Stacked */}
-          <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,auto,auto,auto] gap-2">
+      <div className="p-3 bg-blue-50/50 dark:bg-blue-900/10">
+        <div className="space-y-2">
+          {/* Row 1: Name + Role (50/50 on mobile, flexible on desktop) */}
+          <div className="flex gap-2">
             <input
               type="text"
               value={editForm.name}
               onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full px-3 py-2 bg-white dark:bg-slate-700 border-2 border-blue-400 rounded-lg outline-none font-medium text-slate-800 dark:text-white"
+              placeholder="Guest name..."
+              className="w-1/2 md:flex-1 min-w-0 px-3 py-2 bg-white dark:bg-slate-700 border-2 border-blue-400 rounded-lg outline-none font-medium text-sm text-slate-800 dark:text-white"
             />
             <select
               value={editForm.role}
               onChange={(e) => setEditForm(prev => ({ ...prev, role: e.target.value as GuestRole }))}
-              className="px-2 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none text-sm font-medium text-slate-800 dark:text-white"
+              className="w-1/2 md:w-48 px-2 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none text-xs font-medium text-slate-800 dark:text-white"
             >
               {GUEST_ROLES.map(role => (
-                <option key={role.value} value={role.value}>{role.label}</option>
+                <option key={role.value} value={role.value}>{role.icon} {role.label}</option>
               ))}
             </select>
+          </div>
+
+          {/* Row 2: Side, Gender, Type dropdowns */}
+          <div className="flex gap-2">
             <select
               value={editForm.side}
               onChange={(e) => setEditForm(prev => ({ ...prev, side: e.target.value as GuestSide }))}
-              className="px-2 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none text-sm font-medium text-slate-800 dark:text-white"
+              className="flex-1 px-2 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none text-xs font-medium text-slate-800 dark:text-white"
             >
               <option value="groom">Groom's</option>
               <option value="bride">Bride's</option>
@@ -1092,7 +1138,7 @@ const GuestRow: React.FC<GuestRowProps> = ({
             <select
               value={editForm.gender}
               onChange={(e) => setEditForm(prev => ({ ...prev, gender: e.target.value as GuestGender }))}
-              className="px-2 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none text-sm font-medium text-slate-800 dark:text-white"
+              className="flex-1 px-2 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none text-xs font-medium text-slate-800 dark:text-white"
             >
               <option value="male">Male</option>
               <option value="female">Female</option>
@@ -1100,43 +1146,48 @@ const GuestRow: React.FC<GuestRowProps> = ({
             <select
               value={editForm.type}
               onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value as GuestType }))}
-              className="px-2 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none text-sm font-medium text-slate-800 dark:text-white"
+              className="flex-1 px-2 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none text-xs font-medium text-slate-800 dark:text-white"
             >
               <option value="adult">Adult</option>
               <option value="child">Child</option>
             </select>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 self-center">Events:</span>
-            {enabledEvents.map(event => (
-              <button
-                key={event.id}
-                onClick={() => toggleEvent(event.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  editForm.invitedTo.includes(event.id)
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400'
-                }`}
-              >
-                {event.name}
-              </button>
-            ))}
+          {/* Row 3: Events - matching Individual Add styling */}
+          <div>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Invite to</p>
+            <div className="flex flex-wrap gap-2">
+              {enabledEvents.map(event => (
+                <button
+                  key={event.id}
+                  onClick={() => toggleEvent(event.id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                    editForm.invitedTo.includes(event.id)
+                      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-2 border-blue-400'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-2 border-transparent'
+                  }`}
+                >
+                  {event.name}
+                  {editForm.invitedTo.includes(event.id) && <Check className="w-3.5 h-3.5" />}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          {/* Row 4: Actions */}
+          <div className="flex justify-end gap-2 pt-1">
             <button
               onClick={onCancelEdit}
-              className="flex items-center gap-1 px-3 py-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm font-medium"
+              className="flex items-center gap-1 px-3 py-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-xs font-medium"
             >
-              <X className="w-4 h-4" /> Cancel
+              <X className="w-3.5 h-3.5" /> Cancel
             </button>
             <button
               onClick={() => onSave(editForm)}
-              disabled={editForm.invitedTo.length === 0}
-              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg text-sm font-bold"
+              disabled={editForm.invitedTo.length === 0 || !editForm.name.trim()}
+              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg text-xs font-bold"
             >
-              <Check className="w-4 h-4" /> Save
+              <Check className="w-3.5 h-3.5" /> Save
             </button>
           </div>
         </div>
@@ -1206,7 +1257,7 @@ const GuestRow: React.FC<GuestRowProps> = ({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          {/* Desktop: Name + Role + Side on same row - with right margin for buttons */}
+          {/* Desktop: Name + Role + Side on same row */}
           <div className="hidden md:flex items-center gap-2 flex-wrap pr-14">
             <span className="font-semibold text-slate-800 dark:text-white">
               {guest.name}
@@ -1215,20 +1266,18 @@ const GuestRow: React.FC<GuestRowProps> = ({
             {SideBadge}
           </div>
 
-          {/* Mobile: 3-row layout - with right margin for buttons on name row */}
+          {/* Mobile: Name on row 1, Badges on row 2 */}
           <div className="md:hidden">
-            {/* Row 1: Name */}
             <p className="font-semibold text-slate-800 dark:text-white pr-14">
               {guest.name}
             </p>
-            {/* Row 2: Role + Side badges */}
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               {RoleBadge}
               {SideBadge}
             </div>
           </div>
 
-          {/* Events as subtle text - NO right padding, uses full width */}
+          {/* Events as subtle text */}
           {invitedEvents.length > 0 && (
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 leading-relaxed">
               {invitedEvents.map((event, idx) => (
