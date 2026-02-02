@@ -521,7 +521,7 @@ export const BudgetPlanner: React.FC = () => {
     };
     
     return (
-      <div key={cat.key} className={`rounded-xl bg-slate-50 dark:bg-slate-700/50 border-l-4 ${getCardBorderStyle()} relative group transition-all`}>
+      <div key={cat.key} className={`rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 border-l-4 ${getCardBorderStyle()} relative group transition-all`}>
         {/* COLLAPSED HEADER - Always visible, clickable to expand */}
         <button
           onClick={() => setExpandedCard(isExpanded ? null : cat.key)}
@@ -853,9 +853,9 @@ export const BudgetPlanner: React.FC = () => {
         {/* Section Header - Clickable to expand/collapse */}
         <button
           onClick={toggleSection}
-          className={`w-full p-3 rounded-xl flex items-center justify-between transition-all ${
+          className={`w-full p-3 rounded-xl flex items-center justify-between transition-all border border-slate-200 dark:border-slate-600 ${
             isExpanded 
-              ? 'bg-slate-100 dark:bg-slate-700 rounded-b-none' 
+              ? 'bg-slate-100 dark:bg-slate-700 rounded-b-none border-b-0' 
               : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'
           }`}
         >
@@ -892,7 +892,7 @@ export const BudgetPlanner: React.FC = () => {
         
         {/* Expanded content */}
         {isExpanded && (
-          <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-b-xl p-3 pt-2 border-t border-slate-200 dark:border-slate-600">
+          <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-b-xl p-3 pt-2 border border-t-0 border-slate-200 dark:border-slate-600">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
               {categories.map((cat, index) => renderCategoryCard(cat, isFirstSection && index === 0))}
             </div>
