@@ -1,29 +1,59 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Users, Calculator, Sparkles, ChevronDown } from './Icons';
+import { Users, Calculator, Sparkles, ChevronDown, Edit, Check, X } from './Icons';
 import { BUDGET_CATEGORIES, CURRENCIES, SECTION_LABELS } from '../constants';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { BudgetCategory, Payer, CategorySection } from '../types';
+import { BudgetCategory, Payer, CategorySection, CategoryExpense, PaymentStatus, BudgetTemplate } from '../types';
 
-// Type for category data (percentage + payer)
-type CategoryData = {
-  percentage: number;
-  payer: Payer;
-};
-type CategoryDataMap = { [key: string]: CategoryData };
+// Budget templates for quick setup
+const BUDGET_TEMPLATES: BudgetTemplate[] = [
+  { id: '5k', name: '£5,000', amount: 5000, description: 'Intimate', icon: '💍' },
+  { id: '10k', name: '£10,000', amount: 10000, description: 'Modest', icon: '🎊' },
+  { id: '20k', name: '£20,000', amount: 20000, description: 'Traditional', icon: '✨' },
+  { id: '30k', name: '£30,000', amount: 30000, description: 'Grand', icon: '👑' },
+  { id: '50k', name: '£50,000', amount: 50000, description: 'Luxury', icon: '💎' },
+];
+
+// Type for category data with expense tracking
+type CategoryDataMap = { [key: string]: CategoryExpense };
 
 // Type for custom categories
 type CustomCategory = BudgetCategory;
 
-// Initialize default data from constants
+// Initialize default data from constants with expense tracking
 const getDefaultCategoryData = (): CategoryDataMap => {
   return BUDGET_CATEGORIES.reduce((acc, cat) => ({
     ...acc,
     [cat.key]: {
       percentage: Math.round(cat.basePercentage * 100),
-      payer: cat.defaultPayer
+      payer: cat.defaultPayer,
+      paymentStatus: 'pending' as PaymentStatus,
+      amountPaid: 0,
+      actualCost: undefined,
+      estimatedCost: undefined,
+      vendor: '',
+      notes: ''
     }
   }), {});
+};
+
+// Migrate old category data to new format with expense tracking
+const migrateCategoryData = (data: CategoryDataMap): CategoryDataMap => {
+  const migrated: CategoryDataMap = {};
+  for (const [key, value] of Object.entries(data)) {
+    const v = value as Partial<CategoryExpense> & { percentage?: number; payer?: Payer };
+    migrated[key] = {
+      percentage: v.percentage || 0,
+      payer: v.payer || 'joint',
+      paymentStatus: v.paymentStatus || 'pending',
+      amountPaid: v.amountPaid || 0,
+      actualCost: v.actualCost,
+      estimatedCost: v.estimatedCost,
+      vendor: v.vendor || '',
+      notes: v.notes || ''
+    };
+  }
+  return migrated;
 };
 
 export const BudgetPlanner: React.FC = () => {
@@ -31,14 +61,18 @@ export const BudgetPlanner: React.FC = () => {
   const [totalBudget, setTotalBudget] = useLocalStorage<string>('budget-totalBudget', '20000');
   const [guestCount, setGuestCount] = useLocalStorage<string>('budget-guestCount', '150');
   const [currencyCode, setCurrencyCode] = useLocalStorage<string>('budget-currency', 'GBP');
-  const [categoryData, setCategoryData] = useLocalStorage<CategoryDataMap>(
-    'budget-categoryData-v2',
+  const [rawCategoryData, setRawCategoryData] = useLocalStorage<CategoryDataMap>(
+    'budget-categoryData-v3', // Bumped version for expense tracking
     getDefaultCategoryData()
   );
   const [customCategories, setCustomCategories] = useLocalStorage<CustomCategory[]>(
     'budget-customCategories',
     []
   );
+  
+  // Migrate and use category data
+  const categoryData = useMemo(() => migrateCategoryData(rawCategoryData), [rawCategoryData]);
+  const setCategoryData = setRawCategoryData;
   
   // Derive currency object from stored code
   const selectedCurrency = useMemo(() => 
@@ -55,6 +89,9 @@ export const BudgetPlanner: React.FC = () => {
   // Track which input is being edited and its current value
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState<string>('');
+  
+  // Track which category has expense tracking expanded
+  const [expandedExpenseCategory, setExpandedExpenseCategory] = useState<string | null>(null);
   
   // Custom category form state
   const [isAddingCustom, setIsAddingCustom] = useState(false);
@@ -79,7 +116,10 @@ export const BudgetPlanner: React.FC = () => {
 
   // Calculate total percentage
   const totalPercentage = useMemo(() => {
-    return Object.values(categoryData).reduce((sum, data) => sum + (data?.percentage || 0), 0);
+    return Object.values(categoryData).reduce<number>((sum, data) => {
+      const d = data as CategoryExpense;
+      return sum + (d?.percentage || 0);
+    }, 0);
   }, [categoryData]);
 
   const isOverBudget = totalPercentage > 100;
@@ -176,7 +216,14 @@ export const BudgetPlanner: React.FC = () => {
     setCustomCategories(prev => [...prev, newCategory]);
     setCategoryData(prev => ({
       ...prev,
-      [key]: { percentage: 0, payer: 'joint' }
+      [key]: { 
+        percentage: 0, 
+        payer: 'joint',
+        paymentStatus: 'pending' as PaymentStatus,
+        amountPaid: 0,
+        vendor: '',
+        notes: ''
+      }
     }));
     setNewCategoryName('');
     setIsAddingCustom(false);
@@ -215,15 +262,83 @@ export const BudgetPlanner: React.FC = () => {
 
   // Calculate totals by payer
   const payerTotals = useMemo(() => {
-    const totals = { joint: 0, groom: 0, bride: 0 };
-    Object.entries(categoryData).forEach(([key, data]) => {
-      if (data?.percentage > 0) {
-        const amount = Math.round((budget * data.percentage) / 100);
-        totals[data.payer] += amount;
+    const totals: Record<Payer, number> = { joint: 0, groom: 0, bride: 0 };
+    Object.entries(categoryData).forEach(([_key, data]) => {
+      const d = data as CategoryExpense;
+      if (d?.percentage > 0) {
+        const amount = Math.round((budget * d.percentage) / 100);
+        totals[d.payer] += amount;
       }
     });
     return totals;
   }, [categoryData, budget]);
+  
+  // Calculate expense tracking totals
+  const expenseTotals = useMemo(() => {
+    let totalEstimated = 0;
+    let totalActual = 0;
+    let totalPaid = 0;
+    let totalPending = 0;
+    
+    Object.entries(categoryData).forEach(([_key, data]) => {
+      const d = data as CategoryExpense;
+      const budgetedAmount = Math.round((budget * (d?.percentage || 0)) / 100);
+      const estimated = d?.estimatedCost ?? budgetedAmount;
+      const actual = d?.actualCost ?? 0;
+      const paid = d?.amountPaid || 0;
+      
+      totalEstimated += estimated;
+      totalActual += actual;
+      totalPaid += paid;
+      totalPending += Math.max(0, (actual || estimated) - paid);
+    });
+    
+    return { totalEstimated, totalActual, totalPaid, totalPending };
+  }, [categoryData, budget]);
+  
+  // Update expense tracking fields
+  const updateExpenseField = (key: string, field: keyof CategoryExpense, value: any) => {
+    setCategoryData(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        [field]: value
+      }
+    }));
+  };
+  
+  // Update payment status based on amounts
+  const calculatePaymentStatus = (actual: number, paid: number): PaymentStatus => {
+    if (paid >= actual && actual > 0) return 'paid';
+    if (paid > 0) return 'partial';
+    return 'pending';
+  };
+  
+  // Update actual cost and auto-calculate status
+  const handleActualCostChange = (key: string, value: number) => {
+    const paid = categoryData[key]?.amountPaid || 0;
+    setCategoryData(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        actualCost: value,
+        paymentStatus: calculatePaymentStatus(value, paid)
+      }
+    }));
+  };
+  
+  // Update amount paid and auto-calculate status
+  const handleAmountPaidChange = (key: string, value: number) => {
+    const actual = categoryData[key]?.actualCost || 0;
+    setCategoryData(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        amountPaid: value,
+        paymentStatus: calculatePaymentStatus(actual, value)
+      }
+    }));
+  };
 
   // Group categories by section
   const categoriesBySection = useMemo(() => {
@@ -434,6 +549,117 @@ export const BudgetPlanner: React.FC = () => {
           onChange={(e) => handlePercentageChange(cat.key, parseInt(e.target.value))}
           className="hidden md:block w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-emerald-600"
         />
+        
+        {/* Payment Status & Expense Tracking Toggle */}
+        {percentage > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-600">
+            <button
+              onClick={() => setExpandedExpenseCategory(expandedExpenseCategory === cat.key ? null : cat.key)}
+              className="w-full flex items-center justify-between text-xs"
+            >
+              <div className="flex items-center gap-2">
+                {/* Payment Status Badge */}
+                {data.paymentStatus === 'paid' && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Paid
+                  </span>
+                )}
+                {data.paymentStatus === 'partial' && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-semibold">
+                    Partial
+                  </span>
+                )}
+                {data.paymentStatus === 'pending' && (
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-600 text-slate-500 dark:text-slate-400 font-semibold">
+                    Pending
+                  </span>
+                )}
+                {data.amountPaid && data.amountPaid > 0 && (
+                  <span className="text-slate-500 dark:text-slate-400">
+                    {selectedCurrency.symbol}{data.amountPaid.toLocaleString()} paid
+                  </span>
+                )}
+              </div>
+              <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                <Edit className="w-3 h-3" />
+                Track
+                <ChevronDown className={`w-3 h-3 transition-transform ${expandedExpenseCategory === cat.key ? 'rotate-180' : ''}`} />
+              </span>
+            </button>
+            
+            {/* Expanded Expense Tracking Form */}
+            {expandedExpenseCategory === cat.key && (
+              <div className="mt-3 p-3 bg-slate-100 dark:bg-slate-700/50 rounded-xl space-y-3 animate-in slide-in-from-top-2 duration-200">
+                {/* Actual Cost */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Actual Cost</label>
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
+                    <input
+                      type="number"
+                      value={data.actualCost || ''}
+                      onChange={(e) => handleActualCostChange(cat.key, parseInt(e.target.value) || 0)}
+                      placeholder={amount.toString()}
+                      className="w-full pl-6 pr-2 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                </div>
+                
+                {/* Amount Paid */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Amount Paid</label>
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
+                    <input
+                      type="number"
+                      value={data.amountPaid || ''}
+                      onChange={(e) => handleAmountPaidChange(cat.key, parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                      className="w-full pl-6 pr-2 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                </div>
+                
+                {/* Vendor Name */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Vendor/Supplier</label>
+                  <input
+                    type="text"
+                    value={data.vendor || ''}
+                    onChange={(e) => updateExpenseField(cat.key, 'vendor', e.target.value)}
+                    placeholder="Enter vendor name..."
+                    className="w-full px-2 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+                
+                {/* Notes */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notes</label>
+                  <input
+                    type="text"
+                    value={data.notes || ''}
+                    onChange={(e) => updateExpenseField(cat.key, 'notes', e.target.value)}
+                    placeholder="Any notes..."
+                    className="w-full px-2 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+                
+                {/* Quick status for remaining */}
+                {(data.actualCost || 0) > 0 && (
+                  <div className="text-xs text-center text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-600">
+                    {(data.actualCost || 0) - (data.amountPaid || 0) > 0 ? (
+                      <span className="text-amber-600 dark:text-amber-400">
+                        {selectedCurrency.symbol}{((data.actualCost || 0) - (data.amountPaid || 0)).toLocaleString()} remaining to pay
+                      </span>
+                    ) : (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">✓ Fully paid!</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -501,6 +727,27 @@ export const BudgetPlanner: React.FC = () => {
               />
             </div>
             {budgetError && <p className="text-red-500 dark:text-red-400 text-xs mt-2 font-medium">{budgetError}</p>}
+            
+            {/* Budget Templates - Quick Select */}
+            <div className="mt-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Quick select:</p>
+              <div className="flex flex-wrap gap-2">
+                {BUDGET_TEMPLATES.map(template => (
+                  <button
+                    key={template.id}
+                    onClick={() => setTotalBudget(template.amount.toString())}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                      parseInt(totalBudget) === template.amount
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
+                    }`}
+                  >
+                    <span>{template.icon}</span>
+                    <span>{template.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Expected Guests</label>
@@ -685,6 +932,58 @@ export const BudgetPlanner: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Expense Tracking Summary */}
+        {(expenseTotals.totalActual > 0 || expenseTotals.totalPaid > 0) && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 md:p-6 mb-6 border border-slate-200 dark:border-slate-700 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                💰 Payment Tracking
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Budgeted</p>
+                <p className="text-lg font-bold text-slate-700 dark:text-slate-200">
+                  {selectedCurrency.symbol}{Math.round(totalAllocated).toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3">
+                <p className="text-xs text-blue-600 dark:text-blue-400">Actual Costs</p>
+                <p className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                  {selectedCurrency.symbol}{expenseTotals.totalActual.toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-3">
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">Paid</p>
+                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
+                  {selectedCurrency.symbol}{expenseTotals.totalPaid.toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
+                <p className="text-xs text-amber-600 dark:text-amber-400">Pending</p>
+                <p className="text-lg font-bold text-amber-700 dark:text-amber-300">
+                  {selectedCurrency.symbol}{expenseTotals.totalPending.toLocaleString()}
+                </p>
+              </div>
+            </div>
+            {/* Progress bar */}
+            {expenseTotals.totalActual > 0 && (
+              <div className="mt-4">
+                <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+                  <span>Payment Progress</span>
+                  <span>{Math.round((expenseTotals.totalPaid / expenseTotals.totalActual) * 100)}%</span>
+                </div>
+                <div className="h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-emerald-500 transition-all duration-500"
+                    style={{ width: `${Math.min(100, (expenseTotals.totalPaid / expenseTotals.totalActual) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <button 
           onClick={handleCalculate}

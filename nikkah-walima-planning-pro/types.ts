@@ -18,6 +18,31 @@ export interface BudgetCategory {
   isCustom?: boolean;
 }
 
+// Expense tracking for each category
+export type PaymentStatus = 'pending' | 'partial' | 'paid';
+
+export interface CategoryExpense {
+  percentage: number;
+  payer: Payer;
+  // Expense tracking fields
+  estimatedCost?: number; // User's manual estimate (optional override)
+  actualCost?: number; // What was actually spent
+  amountPaid?: number; // How much has been paid so far
+  paymentStatus: PaymentStatus;
+  vendor?: string; // Vendor/supplier name
+  notes?: string; // Any notes
+  dueDate?: string; // Payment due date
+}
+
+// Budget templates for quick setup
+export interface BudgetTemplate {
+  id: string;
+  name: string;
+  amount: number;
+  description: string;
+  icon: string;
+}
+
 export interface MahrType {
   id: string;
   name: string;
