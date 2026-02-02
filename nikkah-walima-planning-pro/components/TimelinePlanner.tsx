@@ -1,13 +1,32 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { usePrayerTimes } from '../hooks/usePrayerTimes';
-import { TimelineData, WeddingEvent, PrayerTime, TimelineItem } from '../types';
-import { Clock, Plus, Trash, Edit, AlertTriangle, MapPin, RefreshCw, X, Info } from './Icons';
+import { 
+  TimelineData, 
+  WeddingEvent, 
+  PrayerTime, 
+  TimelineItem, 
+  MultiEventTimelineData,
+  EventTimelineConfig,
+  WeddingEventConfig,
+  GuestManagerData,
+  PrayerConflictInfo
+} from '../types';
+import { Clock, Plus, Trash, Edit, AlertTriangle, MapPin, RefreshCw, X, Info, ChevronDown } from './Icons';
 import { Combobox } from './Combobox';
 import { COUNTRIES, CALCULATION_METHODS, ASR_SCHOOLS, getAutoCalculationMethod, getAutoAsrSchool } from '../constants';
 
-// Default timeline data
-const getDefaultTimelineData = (): TimelineData => ({
+// Default wedding events (fallback if guest manager hasn't been configured)
+const DEFAULT_WEDDING_EVENTS: WeddingEventConfig[] = [
+  { id: 'nikkah', name: 'Nikkah', icon: '💍', enabled: true },
+  { id: 'walima', name: 'Walima', icon: '🍽️', enabled: true },
+  { id: 'mehndi', name: 'Mehndi', icon: '🎨', enabled: false },
+  { id: 'dholki', name: 'Dholki', icon: '🥁', enabled: false },
+  { id: 'civil', name: 'Civil Registry', icon: '📝', enabled: false },
+];
+
+// Default single event timeline
+const getDefaultEventTimeline = (): EventTimelineConfig => ({
   date: '',
   city: '',
   country: '',
@@ -15,6 +34,60 @@ const getDefaultTimelineData = (): TimelineData => ({
   school: 0, // Standard (Shafi/Maliki/Hanbali)
   events: []
 });
+
+// Default multi-event timeline data
+const getDefaultMultiEventData = (): MultiEventTimelineData => ({
+  activeEventId: 'nikkah',
+  defaultCity: '',
+  defaultCountry: '',
+  defaultMethod: 3,
+  defaultSchool: 0,
+  eventTimelines: {}
+});
+
+// Legacy single timeline for migration
+const getDefaultTimelineData = (): TimelineData => ({
+  date: '',
+  city: '',
+  country: '',
+  method: 3,
+  school: 0,
+  events: []
+});
+
+// Migrate legacy single timeline to multi-event structure
+const migrateLegacyData = (
+  legacy: TimelineData | null, 
+  multiEvent: MultiEventTimelineData,
+  firstEventId: string
+): MultiEventTimelineData => {
+  if (!legacy || !legacy.date) return multiEvent;
+  
+  // Check if we already have this data migrated
+  if (multiEvent.eventTimelines[firstEventId]?.events?.length > 0) {
+    return multiEvent;
+  }
+  
+  // Migrate legacy data to first enabled event
+  return {
+    ...multiEvent,
+    defaultCity: legacy.city,
+    defaultCountry: legacy.country,
+    defaultMethod: legacy.method,
+    defaultSchool: legacy.school,
+    eventTimelines: {
+      ...multiEvent.eventTimelines,
+      [firstEventId]: {
+        date: legacy.date,
+        city: legacy.city,
+        country: legacy.country,
+        method: legacy.method,
+        school: legacy.school,
+        events: legacy.events
+      }
+    }
+  };
+};
 
 // Common event presets for quick adding
 const EVENT_PRESETS = [
@@ -30,13 +103,51 @@ const EVENT_PRESETS = [
   { name: 'Guest Departure', icon: '👋', duration: 30 },
 ];
 
+// Timeline templates for quick setup
+const TIMELINE_TEMPLATES = {
+  afternoonNikkah: {
+    id: 'afternoonNikkah',
+    name: 'Afternoon Nikkah',
+    description: 'Traditional afternoon ceremony with Dhuhr/Asr prayers',
+    startHour: 14, // 2 PM
+    events: [
+      { name: 'Guests Arrive', startTime: '14:00', endTime: '14:30', icon: '🚗', type: 'custom' as const },
+      { name: 'Nikkah Ceremony', startTime: '14:30', endTime: '15:00', icon: '💍', type: 'custom' as const },
+      { name: 'Photography', startTime: '15:00', endTime: '16:00', icon: '📸', type: 'custom' as const },
+      { name: 'Prayer Break', startTime: '16:00', endTime: '16:30', icon: '🤲', type: 'custom' as const },
+      { name: 'Food Service', startTime: '16:30', endTime: '18:00', icon: '🍽️', type: 'custom' as const },
+      { name: 'Guest Departure', startTime: '18:00', endTime: '18:30', icon: '👋', type: 'custom' as const },
+    ]
+  },
+  eveningWalima: {
+    id: 'eveningWalima',
+    name: 'Evening Walima',
+    description: 'Evening reception with Maghrib/Isha prayers',
+    startHour: 18, // 6 PM
+    events: [
+      { name: 'Guests Arrive', startTime: '18:00', endTime: '18:30', icon: '🚗', type: 'custom' as const },
+      { name: 'Entrance', startTime: '18:30', endTime: '19:00', icon: '🎉', type: 'custom' as const },
+      { name: 'Prayer Break (Maghrib)', startTime: '19:00', endTime: '19:30', icon: '🤲', type: 'custom' as const },
+      { name: 'Food Service', startTime: '19:30', endTime: '21:00', icon: '🍽️', type: 'custom' as const },
+      { name: 'Cake Cutting', startTime: '21:00', endTime: '21:15', icon: '🎂', type: 'custom' as const },
+      { name: 'Speeches', startTime: '21:15', endTime: '21:45', icon: '🎤', type: 'custom' as const },
+      { name: 'Prayer Break (Isha)', startTime: '21:45', endTime: '22:15', icon: '🤲', type: 'custom' as const },
+      { name: 'Entertainment', startTime: '22:15', endTime: '23:00', icon: '🎵', type: 'custom' as const },
+      { name: 'Guest Departure', startTime: '23:00', endTime: '23:30', icon: '👋', type: 'custom' as const },
+    ]
+  }
+};
+
 // Prayer duration buffer in minutes (for conflict detection)
 const PRAYER_BUFFER_MINUTES = 15;
 const JUMMAH_BUFFER_MINUTES = 45; // Jummah includes khutbah + prayer
+const FAJR_BUFFER_MINUTES = 20; // Fajr is typically shorter
 
 // Get prayer buffer based on prayer name
 const getPrayerBuffer = (prayerName: string): number => {
-  return prayerName === 'Jummah' ? JUMMAH_BUFFER_MINUTES : PRAYER_BUFFER_MINUTES;
+  if (prayerName === 'Jummah') return JUMMAH_BUFFER_MINUTES;
+  if (prayerName === 'Fajr') return FAJR_BUFFER_MINUTES;
+  return PRAYER_BUFFER_MINUTES;
 };
 
 // Convert HH:MM to minutes from midnight
@@ -80,20 +191,61 @@ const getEffectiveEndMinutes = (startTime: string, endTime: string): number => {
   return endMinutes;
 };
 
-// Check if an event conflicts with ANY prayer times (returns ALL conflicts)
-const checkConflicts = (event: WeddingEvent, prayerTimes: PrayerTime[]): PrayerTime[] => {
+// Check if an event conflicts with ANY prayer times (returns ALL conflicts with deadline info)
+const checkConflicts = (
+  event: WeddingEvent, 
+  prayerTimes: PrayerTime[],
+  sunrise: string
+): PrayerConflictInfo[] => {
   const eventStart = timeToMinutes(event.startTime);
   const eventEnd = getEffectiveEndMinutes(event.startTime, event.endTime);
-  const conflicts: PrayerTime[] = [];
+  const conflicts: PrayerConflictInfo[] = [];
   
-  for (const prayer of prayerTimes) {
+  // Create a map for finding next prayer
+  const prayerOrder = ['Fajr', 'Dhuhr', 'Jummah', 'Asr', 'Maghrib', 'Isha'];
+  
+  for (let i = 0; i < prayerTimes.length; i++) {
+    const prayer = prayerTimes[i];
     const prayerStart = timeToMinutes(prayer.time);
     const prayerEnd = prayerStart + getPrayerBuffer(prayer.name);
     
     // Check if event overlaps with prayer time window
-    // For cross-midnight events, we need to check both today's and conceptually tomorrow's prayers
     if (eventStart < prayerEnd && eventEnd > prayerStart) {
-      conflicts.push(prayer);
+      // Determine the deadline (when the prayer MUST be completed by)
+      let deadline: string;
+      let deadlineName: string;
+      let severity: 'warning' | 'high' = 'warning';
+      
+      if (prayer.name === 'Fajr') {
+        // Fajr must be completed before Sunrise
+        deadline = sunrise;
+        deadlineName = 'Sunrise';
+      } else if (prayer.name === 'Jummah') {
+        // Jummah is time-sensitive - cannot delay, must attend congregation
+        // Find Asr time as theoretical deadline
+        const asrPrayer = prayerTimes.find(p => p.name === 'Asr');
+        deadline = asrPrayer?.time || '';
+        deadlineName = 'Asr';
+        severity = 'high'; // High priority - cannot skip Jummah
+      } else {
+        // For other prayers, deadline is the next prayer
+        const nextPrayer = prayerTimes[i + 1];
+        if (nextPrayer) {
+          deadline = nextPrayer.time;
+          deadlineName = nextPrayer.name;
+        } else {
+          // Isha - deadline is Fajr (next day), but we'll show a reasonable time
+          deadline = '23:59';
+          deadlineName = 'Midnight';
+        }
+      }
+      
+      conflicts.push({
+        prayer,
+        deadline,
+        deadlineName,
+        severity
+      });
     }
   }
   
@@ -104,17 +256,92 @@ const checkConflicts = (event: WeddingEvent, prayerTimes: PrayerTime[]): PrayerT
 const generateId = (): string => Math.random().toString(36).substring(2, 9);
 
 export const TimelinePlanner: React.FC = () => {
-  // Persisted data
-  const [timelineData, setTimelineData] = useLocalStorage<TimelineData>(
-    'timeline-data',
-    getDefaultTimelineData()
+  // Read shared events config from Guest Manager (single source of truth)
+  const [guestManagerData] = useLocalStorage<GuestManagerData | null>('guest-manager-data', null);
+  
+  // Get enabled events from Guest Manager, or use defaults
+  const enabledEvents = useMemo(() => {
+    if (guestManagerData?.events) {
+      return guestManagerData.events.filter(e => e.enabled);
+    }
+    return DEFAULT_WEDDING_EVENTS.filter(e => e.enabled);
+  }, [guestManagerData?.events]);
+  
+  // Legacy single timeline data (for migration)
+  const [legacyData] = useLocalStorage<TimelineData | null>('timeline-data', null);
+  
+  // Multi-event timeline data
+  const [multiEventData, setMultiEventData] = useLocalStorage<MultiEventTimelineData>(
+    'multi-event-timeline-data',
+    getDefaultMultiEventData()
   );
   
-  // Ref to always hold the latest timeline data (updated synchronously)
-  const timelineDataRef = useRef(timelineData);
+  // Migrate legacy data on first load
+  useEffect(() => {
+    if (legacyData && legacyData.date && enabledEvents.length > 0) {
+      const firstEventId = enabledEvents[0].id;
+      const migratedData = migrateLegacyData(legacyData, multiEventData, firstEventId);
+      if (JSON.stringify(migratedData) !== JSON.stringify(multiEventData)) {
+        setMultiEventData(migratedData);
+      }
+    }
+  }, [legacyData, enabledEvents]);
+  
+  // Active event selection
+  const activeEventId = multiEventData.activeEventId || enabledEvents[0]?.id || 'nikkah';
+  const activeEvent = enabledEvents.find(e => e.id === activeEventId) || enabledEvents[0];
+  
+  // Get current event's timeline data
+  const currentTimeline: EventTimelineConfig = multiEventData.eventTimelines[activeEventId] || {
+    date: '',
+    city: multiEventData.defaultCity,
+    country: multiEventData.defaultCountry,
+    method: multiEventData.defaultMethod,
+    school: multiEventData.defaultSchool,
+    events: []
+  };
+  
+  // Wrapper to update timeline data while maintaining ref synchronization
+  const timelineData = currentTimeline;
+  const timelineDataRef = useRef(currentTimeline);
+  
+  // Keep ref in sync
+  useEffect(() => {
+    timelineDataRef.current = currentTimeline;
+  }, [currentTimeline]);
+  
+  // Update timeline data for the active event
+  const setTimelineData = (updater: EventTimelineConfig | ((prev: EventTimelineConfig) => EventTimelineConfig)) => {
+    setMultiEventData(prev => {
+      const currentData = prev.eventTimelines[activeEventId] || {
+        date: '',
+        city: prev.defaultCity,
+        country: prev.defaultCountry,
+        method: prev.defaultMethod,
+        school: prev.defaultSchool,
+        events: []
+      };
+      const newData = typeof updater === 'function' ? updater(currentData) : updater;
+      return {
+        ...prev,
+        eventTimelines: {
+          ...prev.eventTimelines,
+          [activeEventId]: newData
+        }
+      };
+    });
+  };
+  
+  // Switch active event
+  const switchEvent = (eventId: string) => {
+    setMultiEventData(prev => ({
+      ...prev,
+      activeEventId: eventId
+    }));
+  };
   
   // Prayer times from API
-  const { prayerTimes, hijriDate, locationInfo, loading, error, fetchPrayerTimes } = usePrayerTimes();
+  const { prayerTimes, sunrise, hijriDate, locationInfo, loading, error, fetchPrayerTimes } = usePrayerTimes();
   
   // UI state
   const [showEventModal, setShowEventModal] = useState(false);
@@ -181,8 +408,8 @@ export const TimelinePlanner: React.FC = () => {
   };
 
   // Merge and sort all timeline items chronologically
-  const sortedTimeline = useMemo((): (TimelineItem & { conflicts?: PrayerTime[]; crossesMidnight?: boolean; isPrayerEvent?: boolean })[] => {
-    const items: (TimelineItem & { conflicts?: PrayerTime[]; crossesMidnight?: boolean; isPrayerEvent?: boolean })[] = [];
+  const sortedTimeline = useMemo((): (TimelineItem & { conflictInfo?: PrayerConflictInfo[]; crossesMidnight?: boolean; isPrayerEvent?: boolean })[] => {
+    const items: (TimelineItem & { conflictInfo?: PrayerConflictInfo[]; crossesMidnight?: boolean; isPrayerEvent?: boolean })[] = [];
     
     // Add prayer times
     prayerTimes.forEach(prayer => {
@@ -191,12 +418,12 @@ export const TimelinePlanner: React.FC = () => {
     
     // Add events with conflict info
     timelineData.events.forEach(event => {
-      const conflicts = checkConflicts(event, prayerTimes);
+      const conflictInfo = checkConflicts(event, prayerTimes, sunrise);
       const crossesMidnight = isCrossMidnight(event.startTime, event.endTime);
       const isPrayerEvent = isPrayerRelatedEvent(event.name);
       items.push({ 
         ...event, 
-        conflicts: conflicts.length > 0 ? conflicts : undefined,
+        conflictInfo: conflictInfo.length > 0 ? conflictInfo : undefined,
         crossesMidnight,
         isPrayerEvent
       });
@@ -210,7 +437,25 @@ export const TimelinePlanner: React.FC = () => {
     });
     
     return items;
-  }, [prayerTimes, timelineData.events]);
+  }, [prayerTimes, timelineData.events, sunrise]);
+  
+  // Load a timeline template
+  const loadTemplate = (templateId: 'afternoonNikkah' | 'eveningWalima') => {
+    const template = TIMELINE_TEMPLATES[templateId];
+    if (!template) return;
+    
+    const generateId = () => Math.random().toString(36).substring(2, 9);
+    
+    const newEvents: WeddingEvent[] = template.events.map(e => ({
+      ...e,
+      id: generateId()
+    }));
+    
+    setTimelineData(prev => ({
+      ...prev,
+      events: newEvents
+    }));
+  };
 
   // Add/Update event
   const handleSaveEvent = () => {
@@ -388,9 +633,43 @@ export const TimelinePlanner: React.FC = () => {
           Prayer-Aware Timeline
         </h2>
         <p className="text-slate-600 dark:text-slate-400 italic">
-          Schedule your wedding day around the sacred times of Salah
+          Schedule your wedding events around the sacred times of Salah
         </p>
       </div>
+
+      {/* Event Tabs - Only show if multiple events enabled */}
+      {enabledEvents.length > 1 && (
+        <div className="mb-6">
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {enabledEvents.map(event => (
+              <button
+                key={event.id}
+                onClick={() => switchEvent(event.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
+                  activeEventId === event.id
+                    ? 'bg-emerald-600 text-white shadow-lg'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <span>{event.icon}</span>
+                <span>{event.name}</span>
+                {multiEventData.eventTimelines[event.id]?.events?.length > 0 && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                    activeEventId === event.id
+                      ? 'bg-emerald-500'
+                      : 'bg-slate-200 dark:bg-slate-600'
+                  }`}>
+                    {multiEventData.eventTimelines[event.id].events.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+            💡 Configure events in the Guest Manager to add more tabs
+          </p>
+        </div>
+      )}
 
       {/* Info Banner */}
       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-4 mb-8">
@@ -399,7 +678,7 @@ export const TimelinePlanner: React.FC = () => {
           <div className="text-sm text-amber-800 dark:text-amber-200">
             <p className="font-semibold mb-1">Prayer times are sacred anchors</p>
             <p className="text-amber-700 dark:text-amber-300">
-              Plan your events around Salah times. We'll warn you if any event clashes with prayer time.
+              Plan your events around Salah times. We'll warn you if any event overlaps with prayer time, showing you the deadline to pray before the next prayer begins.
             </p>
           </div>
         </div>
@@ -633,10 +912,52 @@ export const TimelinePlanner: React.FC = () => {
               Your Wedding Timeline
             </h3>
 
-            {sortedTimeline.length === 0 ? (
-              <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+            {sortedTimeline.length === 0 || timelineData.events.length === 0 ? (
+              <div className="text-center py-8">
                 <Clock className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
-                <p>Add events to build your timeline</p>
+                <p className="text-slate-500 dark:text-slate-400 mb-6">
+                  {prayerTimes.length > 0 
+                    ? `Build your ${activeEvent?.name || 'wedding'} timeline`
+                    : 'Add events to build your timeline'}
+                </p>
+                
+                {/* Template Loading Buttons */}
+                {prayerTimes.length > 0 && (
+                  <div className="max-w-md mx-auto">
+                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-3">
+                      Start with a template:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        onClick={() => loadTemplate('afternoonNikkah')}
+                        className="p-4 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border-2 border-emerald-200 dark:border-emerald-800 rounded-xl text-left transition-all group"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xl">☀️</span>
+                          <span className="font-bold text-emerald-800 dark:text-emerald-300">Afternoon Nikkah</span>
+                        </div>
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                          2:00 PM start • Dhuhr/Asr prayers
+                        </p>
+                      </button>
+                      <button
+                        onClick={() => loadTemplate('eveningWalima')}
+                        className="p-4 bg-violet-50 dark:bg-violet-900/20 hover:bg-violet-100 dark:hover:bg-violet-900/40 border-2 border-violet-200 dark:border-violet-800 rounded-xl text-left transition-all group"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xl">🌙</span>
+                          <span className="font-bold text-violet-800 dark:text-violet-300">Evening Walima</span>
+                        </div>
+                        <p className="text-xs text-violet-600 dark:text-violet-400">
+                          6:00 PM start • Maghrib/Isha prayers
+                        </p>
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
+                      Templates provide a starting point. Customize times after loading.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="relative">
@@ -660,10 +981,12 @@ export const TimelinePlanner: React.FC = () => {
                       <div className={`absolute left-2 md:left-4 w-4 h-4 rounded-full border-2 ${
                         item.type === 'fixed'
                           ? 'bg-amber-100 border-amber-500'
-                          : (item as any).conflicts?.length > 0
+                          : (item as any).conflictInfo?.length > 0
                             ? (item as any).isPrayerEvent
                               ? 'bg-emerald-100 border-emerald-500' // Green dot for prayer events
-                              : 'bg-red-100 border-red-500'
+                              : (item as any).conflictInfo.some((c: PrayerConflictInfo) => c.severity === 'high')
+                                ? 'bg-red-100 border-red-500' // Red for Jummah conflicts
+                                : 'bg-amber-100 border-amber-500' // Amber for warnings
                             : 'bg-emerald-100 border-emerald-500'
                       }`} />
 
@@ -676,7 +999,9 @@ export const TimelinePlanner: React.FC = () => {
                               <span className="text-2xl">☪️</span>
                               <div>
                                 <p className="font-bold text-amber-800 dark:text-amber-300">{item.name}</p>
-                                <p className="text-sm text-amber-600 dark:text-amber-400">Prayer Time</p>
+                                <p className="text-sm text-amber-600 dark:text-amber-400">
+                                  {item.name === 'Jummah' ? 'Friday Prayer (Congregation)' : 'Prayer Time'}
+                                </p>
                               </div>
                             </div>
                             <div className="text-right">
@@ -690,30 +1015,45 @@ export const TimelinePlanner: React.FC = () => {
                       ) : (
                         // Custom Event Card
                         <div className={`rounded-2xl p-4 ${
-                          (item as any).conflicts?.length > 0
+                          (item as any).conflictInfo?.length > 0
                             ? (item as any).isPrayerEvent
                               ? 'bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-300 dark:border-emerald-700'
-                              : 'bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700'
+                              : (item as any).conflictInfo.some((c: PrayerConflictInfo) => c.severity === 'high')
+                                ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700'
+                                : 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700'
                             : 'bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600'
                         }`}>
-                          {/* Conflict Message - green for prayer events, red for others */}
-                          {(item as any).conflicts?.length > 0 && (
+                          {/* Conflict Message - green for prayer events, yellow warning for delays, red for Jummah */}
+                          {(item as any).conflictInfo?.length > 0 && (
                             (item as any).isPrayerEvent ? (
                               <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold mb-2">
                                 <span>✓</span>
                                 <span>Scheduled during prayer time</span>
                               </div>
+                            ) : (item as any).conflictInfo.some((c: PrayerConflictInfo) => c.severity === 'high') ? (
+                              // High priority - Jummah conflict
+                              <div className="flex items-start gap-2 text-red-600 dark:text-red-400 text-sm font-semibold mb-2">
+                                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="block">
+                                    ⚠️ Overlaps with Jummah Prayer
+                                  </span>
+                                  <span className="block text-xs font-normal mt-0.5">
+                                    Jummah congregation cannot be delayed. Consider rescheduling this event.
+                                  </span>
+                                </div>
+                              </div>
                             ) : (
-                              <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-semibold mb-2">
-                                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                                <span>
-                                  Clashes with {(item as any).conflicts.map((c: PrayerTime, i: number) => (
-                                    <span key={c.name}>
-                                      {i > 0 && (i === (item as any).conflicts.length - 1 ? ' & ' : ', ')}
-                                      {c.name}
+                              // Yellow warning - can delay prayer
+                              <div className="flex items-start gap-2 text-amber-600 dark:text-amber-400 text-sm mb-2">
+                                <span className="text-base mt-0.5">⚠️</span>
+                                <div>
+                                  {(item as any).conflictInfo.map((conflict: PrayerConflictInfo, idx: number) => (
+                                    <span key={conflict.prayer.name} className="block">
+                                      Overlaps {conflict.prayer.name}. Ensure prayer before {conflict.deadlineName} ({formatTimeDisplay(conflict.deadline)})
                                     </span>
                                   ))}
-                                </span>
+                                </div>
                               </div>
                             )
                           )}
