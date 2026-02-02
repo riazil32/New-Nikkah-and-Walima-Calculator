@@ -45,6 +45,7 @@ export interface LocationInfo {
 
 interface UsePrayerTimesResult {
   prayerTimes: PrayerTime[];
+  sunrise: string; // Sunrise time (Fajr deadline)
   hijriDate: string;
   locationInfo: LocationInfo | null;
   loading: boolean;
@@ -52,8 +53,8 @@ interface UsePrayerTimesResult {
   fetchPrayerTimes: (city: string, country: string, date: string, method?: number, school?: number) => Promise<void>;
 }
 
-// Prayer names we care about for weddings (excluding Fajr as most weddings are daytime)
-const RELEVANT_PRAYERS = ['Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+// Prayer names we care about for weddings (including Fajr for early events)
+const RELEVANT_PRAYERS = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
 // Check if a date is a Friday (for Jummah)
 const isFriday = (dateString: string): boolean => {
@@ -71,6 +72,7 @@ const formatTime = (time24: string): string => {
 
 export const usePrayerTimes = (): UsePrayerTimesResult => {
   const [prayerTimes, setPrayerTimes] = useState<PrayerTime[]>([]);
+  const [sunrise, setSunrise] = useState<string>('');
   const [hijriDate, setHijriDate] = useState<string>('');
   const [locationInfo, setLocationInfo] = useState<LocationInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -125,6 +127,9 @@ export const usePrayerTimes = (): UsePrayerTimesResult => {
 
       setPrayerTimes(times);
       
+      // Store sunrise time (Fajr deadline)
+      setSunrise(data.data.timings.Sunrise.split(' ')[0]);
+      
       // Set Hijri date
       const hijri = data.data.date.hijri;
       setHijriDate(`${hijri.date} ${hijri.month.en} ${hijri.year} AH`);
@@ -142,6 +147,7 @@ export const usePrayerTimes = (): UsePrayerTimesResult => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch prayer times. Please check the city and country.');
       setPrayerTimes([]);
+      setSunrise('');
       setLocationInfo(null);
     } finally {
       setLoading(false);
@@ -150,6 +156,7 @@ export const usePrayerTimes = (): UsePrayerTimesResult => {
 
   return {
     prayerTimes,
+    sunrise,
     hijriDate,
     locationInfo,
     loading,

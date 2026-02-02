@@ -82,7 +82,8 @@ export interface WeddingEvent {
   type: 'custom';
 }
 
-export interface TimelineData {
+// Single event timeline configuration (used per-event)
+export interface EventTimelineConfig {
   date: string; // YYYY-MM-DD
   city: string;
   country: string;
@@ -91,7 +92,49 @@ export interface TimelineData {
   events: WeddingEvent[];
 }
 
+// Multi-event timeline data structure
+export interface MultiEventTimelineData {
+  // Active event being viewed
+  activeEventId: string;
+  // Shared location settings (default for new events)
+  defaultCity: string;
+  defaultCountry: string;
+  defaultMethod: number;
+  defaultSchool: number;
+  // Per-event timelines
+  eventTimelines: {
+    [eventId: string]: EventTimelineConfig;
+  };
+}
+
+// Legacy single timeline (backward compatibility)
+export interface TimelineData {
+  date: string;
+  city: string;
+  country: string;
+  method: number;
+  school: number;
+  events: WeddingEvent[];
+}
+
 export type TimelineItem = PrayerTime | WeddingEvent;
+
+// Timeline template for quick setup
+export interface TimelineTemplate {
+  id: string;
+  name: string;
+  description: string;
+  startHour: number; // e.g., 14 for 2 PM
+  events: Omit<WeddingEvent, 'id'>[];
+}
+
+// Prayer conflict info with deadline
+export interface PrayerConflictInfo {
+  prayer: PrayerTime;
+  deadline: string; // Time by which prayer must be completed
+  deadlineName: string; // e.g., "Asr" or "Sunrise"
+  severity: 'warning' | 'high'; // warning = can delay, high = Jummah (cannot delay)
+}
 
 // Guest Manager Types
 export type GuestSide = 'groom' | 'bride' | 'joint';
