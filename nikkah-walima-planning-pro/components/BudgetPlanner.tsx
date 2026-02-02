@@ -5,14 +5,43 @@ import { BUDGET_CATEGORIES, CURRENCIES, SECTION_LABELS } from '../constants';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { BudgetCategory, Payer, CategorySection, CategoryExpense, PaymentStatus, BudgetTemplate } from '../types';
 
-// Budget templates for quick setup
-const BUDGET_TEMPLATES: BudgetTemplate[] = [
-  { id: '5k', name: '£5,000', amount: 5000, description: 'Intimate', icon: '💍' },
-  { id: '10k', name: '£10,000', amount: 10000, description: 'Modest', icon: '🎊' },
-  { id: '20k', name: '£20,000', amount: 20000, description: 'Traditional', icon: '✨' },
-  { id: '30k', name: '£30,000', amount: 30000, description: 'Grand', icon: '👑' },
-  { id: '50k', name: '£50,000', amount: 50000, description: 'Luxury', icon: '💎' },
+// Budget templates in GBP (base currency) - will be converted for other currencies
+const BUDGET_TEMPLATES_GBP = [
+  { id: '5k', baseAmount: 5000, description: 'Intimate', icon: '💍' },
+  { id: '10k', baseAmount: 10000, description: 'Modest', icon: '🎊' },
+  { id: '20k', baseAmount: 20000, description: 'Traditional', icon: '✨' },
+  { id: '30k', baseAmount: 30000, description: 'Grand', icon: '👑' },
+  { id: '50k', baseAmount: 50000, description: 'Luxury', icon: '💎' },
 ];
+
+// Approximate exchange rates from GBP (updated periodically)
+const EXCHANGE_RATES_FROM_GBP: Record<string, number> = {
+  GBP: 1,
+  USD: 1.27,
+  EUR: 1.17,
+  AED: 4.66,
+  SAR: 4.76,
+  PKR: 354,
+  INR: 106,
+  MYR: 5.98,
+  CAD: 1.72,
+  AUD: 1.94,
+};
+
+// Get budget templates converted to the selected currency
+const getBudgetTemplates = (currencyCode: string, symbol: string): BudgetTemplate[] => {
+  const rate = EXCHANGE_RATES_FROM_GBP[currencyCode] || 1;
+  return BUDGET_TEMPLATES_GBP.map(t => {
+    const convertedAmount = Math.round(t.baseAmount * rate / 1000) * 1000; // Round to nearest 1000
+    return {
+      id: t.id,
+      name: `${symbol}${convertedAmount.toLocaleString()}`,
+      amount: convertedAmount,
+      description: t.description,
+      icon: t.icon
+    };
+  });
+};
 
 // Type for category data with expense tracking
 type CategoryDataMap = { [key: string]: CategoryExpense };
@@ -90,8 +119,8 @@ export const BudgetPlanner: React.FC = () => {
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState<string>('');
   
-  // Track which category has expense tracking expanded
-  const [expandedExpenseCategory, setExpandedExpenseCategory] = useState<string | null>(null);
+  // Track which category card is expanded (for accordion behavior)
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
   
   // Custom category form state
   const [isAddingCustom, setIsAddingCustom] = useState(false);
@@ -290,7 +319,10 @@ export const BudgetPlanner: React.FC = () => {
       totalEstimated += estimated;
       totalActual += actual;
       totalPaid += paid;
-      totalPending += Math.max(0, (actual || estimated) - paid);
+      // Pending = unpaid bills (only count if there's an actual bill entered)
+      if (actual > 0) {
+        totalPending += Math.max(0, actual - paid);
+      }
     });
     
     return { totalEstimated, totalActual, totalPaid, totalPending };
@@ -419,205 +451,282 @@ export const BudgetPlanner: React.FC = () => {
     }
   };
 
-  // Render a category card
+  // Render a category card (Accordion style - collapsed by default)
   const renderCategoryCard = (cat: BudgetCategory, isFirst: boolean = false) => {
-    const data = categoryData[cat.key] || { percentage: 0, payer: 'joint' };
+    const data = categoryData[cat.key] || { percentage: 0, payer: 'joint', paymentStatus: 'pending' as PaymentStatus };
     const percentage = data.percentage;
     const payer = data.payer;
-    const amount = Math.round((budget * percentage) / 100);
+    const amount = Math.round((budget * percentage) / 100); // Allocated amount
+    const totalBill = data.actualCost || 0; // The invoice/quoted price
+    const amountPaid = data.amountPaid || 0;
     const isEditing = editingCategory === cat.key;
     const isCustom = cat.isCustom;
-    const showTooltip = isFirst && showPayerTip;
+    const isExpanded = expandedCard === cat.key;
+    const showTooltip = isFirst && showPayerTip && isExpanded;
+    
+    // Calculate warning states
+    const isOverBudget = totalBill > 0 && totalBill > amount;
+    const overBudgetAmount = isOverBudget ? totalBill - amount : 0;
+    const isOverPaid = amountPaid > totalBill && totalBill > 0;
+    const overPaidAmount = isOverPaid ? amountPaid - totalBill : 0;
+    const pendingAmount = Math.max(0, totalBill - amountPaid);
+    
+    // Determine card border based on status
+    const getCardBorderStyle = () => {
+      if (isOverBudget) return 'border-l-red-500 dark:border-l-red-400';
+      if (isOverPaid) return 'border-l-orange-500 dark:border-l-orange-400';
+      switch (payer) {
+        case 'groom': return 'border-l-teal-500 dark:border-l-teal-400';
+        case 'bride': return 'border-l-rose-500 dark:border-l-rose-400';
+        default: return 'border-l-violet-500 dark:border-l-violet-400';
+      }
+    };
     
     return (
-      <div key={cat.key} className={`rounded-2xl p-4 relative group transition-colors ${getCardStyles(payer)}`}>
-        {/* Delete button for custom categories - top right */}
-        {isCustom && (
-          <button
-            onClick={() => handleDeleteCustomCategory(cat.key)}
-            className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10"
-            title="Delete custom category"
-          >
-            ×
-          </button>
-        )}
-        
-        {/* Row 1: Icon + Name + Custom badge */}
-        <div className={`flex items-center gap-2 mb-2 ${isCustom ? 'pr-8' : ''}`}>
-          <span className="text-xl flex-shrink-0">{cat.icon}</span>
-          <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm">{cat.name}</span>
-          {isCustom && (
-            <span className="text-[10px] bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded uppercase font-bold flex-shrink-0">Custom</span>
-          )}
-        </div>
-        
-        {/* Row 2: Payer badges - left aligned */}
-        <div className="mb-3 relative">
-          {/* Mobile: Single tappable badge */}
-          <button
-            onClick={() => {
-              cyclePayer(cat.key);
-              if (showPayerTip) dismissPayerTip();
-            }}
-            className={`md:hidden flex items-center gap-0.5 ${getPayerStyles(payer, true)}`}
-          >
-            {getPayerLabel(payer)}
-            <ChevronDown className="w-3 h-3 opacity-70" />
-          </button>
-          
-          {/* One-time tooltip for first card on mobile - stays until user taps badge */}
-          {showTooltip && (
-            <div 
-              className="md:hidden absolute left-0 top-full mt-2 z-50"
-            >
-              <div className="bg-white text-slate-800 text-xs font-semibold px-3 py-2.5 rounded-xl shadow-xl border border-slate-200 max-w-[200px] animate-pulse-subtle">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">👆</span>
-                  <span>Tap to change who pays</span>
+      <div key={cat.key} className={`rounded-2xl bg-slate-50 dark:bg-slate-700/50 border-l-4 ${getCardBorderStyle()} relative group transition-all`}>
+        {/* COLLAPSED HEADER - Always visible, clickable to expand */}
+        <button
+          onClick={() => setExpandedCard(isExpanded ? null : cat.key)}
+          className="w-full p-4 text-left"
+        >
+          {/* ROW 1: Title & Controls */}
+          <div className="flex items-start justify-between gap-2">
+            {/* Left: Icon + Name */}
+            <div className="flex items-start gap-2 flex-1 min-w-0">
+              <span className="text-xl flex-shrink-0 mt-0.5">{cat.icon}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm whitespace-normal break-words">{cat.name}</span>
+                  {isCustom && (
+                    <span className="text-[10px] bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded uppercase font-bold flex-shrink-0">Custom</span>
+                  )}
                 </div>
-                {/* Arrow pointing up at badge */}
-                <div className="absolute -top-2 left-5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" />
               </div>
             </div>
-          )}
+            
+            {/* Right: Percentage + Expand icon */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {percentage > 0 && (
+                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                  {Number.isInteger(percentage) ? percentage : percentage.toFixed(1)}%
+                </span>
+              )}
+              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            </div>
+          </div>
           
-          {/* Desktop: All three badges */}
-          <div className="hidden md:flex gap-1">
-            {(['joint', 'groom', 'bride'] as Payer[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => handlePayerChange(cat.key, p)}
-                className={`${getPayerStyles(p, payer === p)} cursor-pointer hover:opacity-80`}
-              >
-                {getPayerLabel(p)}
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        {/* Row 3: Controls */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 md:gap-1">
-            <button
-              onClick={() => handlePercentageChange(cat.key, Math.floor(percentage) - 1)}
-              className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 active:bg-slate-400 text-slate-600 dark:text-slate-200 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
-              disabled={percentage <= 0}
-            >
-              −
-            </button>
-            <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 w-14 md:w-12 text-center">
-              {Number.isInteger(percentage) ? percentage : percentage.toFixed(1)}%
-            </span>
-            <button
-              onClick={() => handlePercentageChange(cat.key, Math.floor(percentage) + 1)}
-              className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 active:bg-slate-400 text-slate-600 dark:text-slate-200 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
-              disabled={percentage >= 100}
-            >
-              +
-            </button>
-          </div>
-          <div className="relative">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={isEditing ? editingValue : amount.toLocaleString()}
-              onFocus={() => {
-                setEditingCategory(cat.key);
-                setEditingValue(amount.toString());
-              }}
-              onChange={(e) => {
-                const rawValue = e.target.value.replace(/[^0-9]/g, '');
-                setEditingValue(rawValue);
-              }}
-              onBlur={() => {
-                const newAmount = parseInt(editingValue) || 0;
-                handleAmountChange(cat.key, newAmount);
-                setEditingCategory(null);
-                setEditingValue('');
-              }}
-              className="w-24 pl-5 pr-2 py-1.5 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-right font-semibold text-slate-700 dark:text-white text-sm focus:outline-none focus:border-emerald-400"
-            />
-          </div>
-        </div>
-        {/* Slider hidden on mobile to prevent accidental touches */}
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={percentage}
-          onChange={(e) => handlePercentageChange(cat.key, parseInt(e.target.value))}
-          className="hidden md:block w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-        />
-        
-        {/* Payment Status & Expense Tracking Toggle */}
-        {percentage > 0 && (
-          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-600">
-            <button
-              onClick={() => setExpandedExpenseCategory(expandedExpenseCategory === cat.key ? null : cat.key)}
-              className="w-full flex items-center justify-between text-xs"
-            >
-              <div className="flex items-center gap-2">
-                {/* Payment Status Badge */}
-                {data.paymentStatus === 'paid' && (
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1">
-                    <Check className="w-3 h-3" /> Paid
+          {/* ROW 2 & 3: Collapsed Summary (only when collapsed and has allocation) */}
+          {!isExpanded && percentage > 0 && (
+            <div className="mt-2 pl-8">
+              {/* ROW 2: The Data */}
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                {totalBill > 0 ? (
+                  <span>
+                    Bill: {selectedCurrency.symbol}{totalBill.toLocaleString()} • Paid: <span className={data.paymentStatus === 'paid' ? 'text-emerald-600 dark:text-emerald-400' : ''}>{selectedCurrency.symbol}{amountPaid.toLocaleString()}</span>
                   </span>
-                )}
-                {data.paymentStatus === 'partial' && (
-                  <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-semibold">
-                    Partial
-                  </span>
-                )}
-                {data.paymentStatus === 'pending' && (
-                  <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-600 text-slate-500 dark:text-slate-400 font-semibold">
-                    Pending
-                  </span>
-                )}
-                {data.amountPaid && data.amountPaid > 0 && (
-                  <span className="text-slate-500 dark:text-slate-400">
-                    {selectedCurrency.symbol}{data.amountPaid.toLocaleString()} paid
-                  </span>
+                ) : (
+                  <span>{selectedCurrency.symbol}{amount.toLocaleString()} allocated</span>
                 )}
               </div>
-              <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                <Edit className="w-3 h-3" />
-                Track
-                <ChevronDown className={`w-3 h-3 transition-transform ${expandedExpenseCategory === cat.key ? 'rotate-180' : ''}`} />
-              </span>
-            </button>
+              
+              {/* ROW 3: The Alerts (Badge Row) */}
+              {(isOverBudget || isOverPaid || (pendingAmount > 0 && totalBill > 0)) && (
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  {/* Over Budget Badge - Red */}
+                  {isOverBudget && (
+                    <span className="text-[10px] bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-bold">
+                      +{selectedCurrency.symbol}{overBudgetAmount.toLocaleString()} over budget
+                    </span>
+                  )}
+                  {/* Pending Badge - Amber */}
+                  {pendingAmount > 0 && totalBill > 0 && !isOverPaid && (
+                    <span className="text-[10px] bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold">
+                      {selectedCurrency.symbol}{pendingAmount.toLocaleString()} pending
+                    </span>
+                  )}
+                  {/* Overpaid Badge - Orange */}
+                  {isOverPaid && (
+                    <span className="text-[10px] bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 rounded font-bold">
+                      ⚠️ Overpaid by {selectedCurrency.symbol}{overPaidAmount.toLocaleString()}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </button>
+        
+        {/* EXPANDED CONTENT */}
+        {isExpanded && (
+          <div className="px-4 pb-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
+            {/* Delete button for custom categories */}
+            {isCustom && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteCustomCategory(cat.key); }}
+                className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full z-10"
+                title="Delete custom category"
+              >
+                ×
+              </button>
+            )}
             
-            {/* Expanded Expense Tracking Form */}
-            {expandedExpenseCategory === cat.key && (
-              <div className="mt-3 p-3 bg-slate-100 dark:bg-slate-700/50 rounded-xl space-y-3 animate-in slide-in-from-top-2 duration-200">
-                {/* Actual Cost */}
+            {/* Payer Selection */}
+            <div className="relative">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Who pays?</p>
+              {/* Mobile: Single tappable badge */}
+              <button
+                onClick={() => {
+                  cyclePayer(cat.key);
+                  if (showPayerTip) dismissPayerTip();
+                }}
+                className={`md:hidden flex items-center gap-0.5 ${getPayerStyles(payer, true)}`}
+              >
+                {getPayerLabel(payer)}
+                <ChevronDown className="w-3 h-3 opacity-70" />
+              </button>
+              
+              {/* Tooltip */}
+              {showTooltip && (
+                <div className="md:hidden absolute left-0 top-full mt-2 z-50">
+                  <div className="bg-white text-slate-800 text-xs font-semibold px-3 py-2.5 rounded-xl shadow-xl border border-slate-200 max-w-[200px]">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">👆</span>
+                      <span>Tap to change who pays</span>
+                    </div>
+                    <div className="absolute -top-2 left-5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" />
+                  </div>
+                </div>
+              )}
+              
+              {/* Desktop: All three badges */}
+              <div className="hidden md:flex gap-1">
+                {(['joint', 'groom', 'bride'] as Payer[]).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => handlePayerChange(cat.key, p)}
+                    className={`${getPayerStyles(p, payer === p)} cursor-pointer hover:opacity-80`}
+                  >
+                    {getPayerLabel(p)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Percentage Controls */}
+            <div>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Budget Allocation</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 md:gap-1">
+                  <button
+                    onClick={() => handlePercentageChange(cat.key, Math.floor(percentage) - 1)}
+                    className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 active:bg-slate-400 text-slate-600 dark:text-slate-200 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
+                    disabled={percentage <= 0}
+                  >
+                    −
+                  </button>
+                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 w-14 md:w-12 text-center">
+                    {Number.isInteger(percentage) ? percentage : percentage.toFixed(1)}%
+                  </span>
+                  <button
+                    onClick={() => handlePercentageChange(cat.key, Math.floor(percentage) + 1)}
+                    className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 active:bg-slate-400 text-slate-600 dark:text-slate-200 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
+                    disabled={percentage >= 100}
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={isEditing ? editingValue : amount.toLocaleString()}
+                    onFocus={() => {
+                      setEditingCategory(cat.key);
+                      setEditingValue(amount.toString());
+                    }}
+                    onChange={(e) => {
+                      const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                      setEditingValue(rawValue);
+                    }}
+                    onBlur={() => {
+                      const newAmount = parseInt(editingValue) || 0;
+                      handleAmountChange(cat.key, newAmount);
+                      setEditingCategory(null);
+                      setEditingValue('');
+                    }}
+                    className="w-28 pl-6 pr-2 py-1.5 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-right font-semibold text-slate-700 dark:text-white text-sm focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+              </div>
+              {/* Slider */}
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={percentage}
+                onChange={(e) => handlePercentageChange(cat.key, parseInt(e.target.value))}
+                className="w-full h-2 mt-3 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+            </div>
+            
+            {/* Expense Tracking Section */}
+            {percentage > 0 && (
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-600 space-y-3">
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Payment Tracking</p>
+                
+                {/* Total Bill (renamed from Actual Cost) */}
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Actual Cost</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Total Bill / Quoted Price</label>
                   <div className="relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
                     <input
-                      type="number"
-                      value={data.actualCost || ''}
-                      onChange={(e) => handleActualCostChange(cat.key, parseInt(e.target.value) || 0)}
+                      type="text"
+                      inputMode="numeric"
+                      value={totalBill || ''}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        handleActualCostChange(cat.key, parseInt(val) || 0);
+                      }}
                       placeholder={amount.toString()}
-                      className="w-full pl-6 pr-2 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                      className={`w-full pl-10 pr-2 py-2 bg-white dark:bg-slate-600 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
+                        isOverBudget ? 'border-red-300 dark:border-red-500' : 'border-slate-200 dark:border-slate-500'
+                      }`}
                     />
                   </div>
+                  {/* Over Budget Warning */}
+                  {isOverBudget && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
+                      ⚠️ {selectedCurrency.symbol}{overBudgetAmount.toLocaleString()} over allocated budget
+                    </p>
+                  )}
                 </div>
                 
                 {/* Amount Paid */}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Amount Paid</label>
                   <div className="relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
                     <input
-                      type="number"
-                      value={data.amountPaid || ''}
-                      onChange={(e) => handleAmountPaidChange(cat.key, parseInt(e.target.value) || 0)}
+                      type="text"
+                      inputMode="numeric"
+                      value={amountPaid || ''}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        handleAmountPaidChange(cat.key, parseInt(val) || 0);
+                      }}
                       placeholder="0"
-                      className="w-full pl-6 pr-2 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                      className={`w-full pl-10 pr-2 py-2 bg-white dark:bg-slate-600 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
+                        isOverPaid ? 'border-orange-300 dark:border-orange-500' : 'border-slate-200 dark:border-slate-500'
+                      }`}
                     />
                   </div>
+                  {/* Over Paid Warning */}
+                  {isOverPaid && (
+                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">
+                      ⚠️ Payment exceeds bill by {selectedCurrency.symbol}{overPaidAmount.toLocaleString()}
+                    </p>
+                  )}
                 </div>
                 
                 {/* Vendor Name */}
@@ -628,7 +737,7 @@ export const BudgetPlanner: React.FC = () => {
                     value={data.vendor || ''}
                     onChange={(e) => updateExpenseField(cat.key, 'vendor', e.target.value)}
                     placeholder="Enter vendor name..."
-                    className="w-full px-2 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
                   />
                 </div>
                 
@@ -640,16 +749,20 @@ export const BudgetPlanner: React.FC = () => {
                     value={data.notes || ''}
                     onChange={(e) => updateExpenseField(cat.key, 'notes', e.target.value)}
                     placeholder="Any notes..."
-                    className="w-full px-2 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
                   />
                 </div>
                 
-                {/* Quick status for remaining */}
-                {(data.actualCost || 0) > 0 && (
-                  <div className="text-xs text-center text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-600">
-                    {(data.actualCost || 0) - (data.amountPaid || 0) > 0 ? (
-                      <span className="text-amber-600 dark:text-amber-400">
-                        {selectedCurrency.symbol}{((data.actualCost || 0) - (data.amountPaid || 0)).toLocaleString()} remaining to pay
+                {/* Payment Status Summary */}
+                {totalBill > 0 && (
+                  <div className="text-xs text-center pt-2 border-t border-slate-200 dark:border-slate-600">
+                    {pendingAmount > 0 ? (
+                      <span className="text-amber-600 dark:text-amber-400 font-medium">
+                        {selectedCurrency.symbol}{pendingAmount.toLocaleString()} remaining to pay
+                      </span>
+                    ) : isOverPaid ? (
+                      <span className="text-orange-600 dark:text-orange-400 font-medium">
+                        ⚠️ Overpaid by {selectedCurrency.symbol}{overPaidAmount.toLocaleString()}
                       </span>
                     ) : (
                       <span className="text-emerald-600 dark:text-emerald-400 font-semibold">✓ Fully paid!</span>
@@ -727,27 +840,6 @@ export const BudgetPlanner: React.FC = () => {
               />
             </div>
             {budgetError && <p className="text-red-500 dark:text-red-400 text-xs mt-2 font-medium">{budgetError}</p>}
-            
-            {/* Budget Templates - Quick Select */}
-            <div className="mt-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Quick select:</p>
-              <div className="flex flex-wrap gap-2">
-                {BUDGET_TEMPLATES.map(template => (
-                  <button
-                    key={template.id}
-                    onClick={() => setTotalBudget(template.amount.toString())}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                      parseInt(totalBudget) === template.amount
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
-                    }`}
-                  >
-                    <span>{template.icon}</span>
-                    <span>{template.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Expected Guests</label>
@@ -767,6 +859,30 @@ export const BudgetPlanner: React.FC = () => {
             </div>
             {guestError && <p className="text-red-500 dark:text-red-400 text-xs mt-2 font-medium">{guestError}</p>}
           </div>
+        </div>
+
+        {/* Budget Templates - Quick Select (Full Width) */}
+        <div className="mb-8 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-2xl">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3">Quick Budget Templates:</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {getBudgetTemplates(currencyCode, selectedCurrency.symbol).map(template => (
+              <button
+                key={template.id}
+                onClick={() => setTotalBudget(template.amount.toString())}
+                className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 ${
+                  parseInt(totalBudget) === template.amount
+                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200 dark:shadow-emerald-900/30'
+                    : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 border border-slate-200 dark:border-slate-500'
+                }`}
+              >
+                <span>{template.icon}</span>
+                <span>{template.name}</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center mt-2">
+            Templates adjusted for {selectedCurrency.name} (approximate rates)
+          </p>
         </div>
 
         {/* Over Budget Warning - Sticky below header */}
@@ -934,56 +1050,81 @@ export const BudgetPlanner: React.FC = () => {
         </div>
 
         {/* Expense Tracking Summary */}
-        {(expenseTotals.totalActual > 0 || expenseTotals.totalPaid > 0) && (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 md:p-6 mb-6 border border-slate-200 dark:border-slate-700 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                💰 Payment Tracking
-              </h3>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Budgeted</p>
-                <p className="text-lg font-bold text-slate-700 dark:text-slate-200">
-                  {selectedCurrency.symbol}{Math.round(totalAllocated).toLocaleString()}
-                </p>
+        {(expenseTotals.totalActual > 0 || expenseTotals.totalPaid > 0) && (() => {
+          const isOverBudgetTotal = expenseTotals.totalActual > Math.round(totalAllocated);
+          const overBudgetAmountTotal = isOverBudgetTotal ? expenseTotals.totalActual - Math.round(totalAllocated) : 0;
+          const isOverPaidTotal = expenseTotals.totalPaid > expenseTotals.totalActual && expenseTotals.totalActual > 0;
+          const paymentPercentage = expenseTotals.totalActual > 0 
+            ? Math.round((expenseTotals.totalPaid / expenseTotals.totalActual) * 100) 
+            : 0;
+          const displayPercentage = Math.min(100, paymentPercentage);
+          
+          return (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 md:p-6 mb-6 border border-slate-200 dark:border-slate-700 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                  💰 Payment Tracking
+                </h3>
+                {isOverBudgetTotal && (
+                  <span className="text-xs bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 px-2 py-1 rounded-full font-bold">
+                    ⚠️ Over Budget
+                  </span>
+                )}
               </div>
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3">
-                <p className="text-xs text-blue-600 dark:text-blue-400">Actual Costs</p>
-                <p className="text-lg font-bold text-blue-700 dark:text-blue-300">
-                  {selectedCurrency.symbol}{expenseTotals.totalActual.toLocaleString()}
-                </p>
-              </div>
-              <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-3">
-                <p className="text-xs text-emerald-600 dark:text-emerald-400">Paid</p>
-                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
-                  {selectedCurrency.symbol}{expenseTotals.totalPaid.toLocaleString()}
-                </p>
-              </div>
-              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
-                <p className="text-xs text-amber-600 dark:text-amber-400">Pending</p>
-                <p className="text-lg font-bold text-amber-700 dark:text-amber-300">
-                  {selectedCurrency.symbol}{expenseTotals.totalPending.toLocaleString()}
-                </p>
-              </div>
-            </div>
-            {/* Progress bar */}
-            {expenseTotals.totalActual > 0 && (
-              <div className="mt-4">
-                <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
-                  <span>Payment Progress</span>
-                  <span>{Math.round((expenseTotals.totalPaid / expenseTotals.totalActual) * 100)}%</span>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Budgeted</p>
+                  <p className="text-lg font-bold text-slate-700 dark:text-slate-200">
+                    {selectedCurrency.symbol}{Math.round(totalAllocated).toLocaleString()}
+                  </p>
                 </div>
-                <div className="h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-emerald-500 transition-all duration-500"
-                    style={{ width: `${Math.min(100, (expenseTotals.totalPaid / expenseTotals.totalActual) * 100)}%` }}
-                  />
+                <div className={`rounded-xl p-3 ${isOverBudgetTotal ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20'}`}>
+                  <p className={`text-xs ${isOverBudgetTotal ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>Total Bills</p>
+                  <p className={`text-lg font-bold ${isOverBudgetTotal ? 'text-red-700 dark:text-red-300' : 'text-blue-700 dark:text-blue-300'}`}>
+                    {selectedCurrency.symbol}{expenseTotals.totalActual.toLocaleString()}
+                  </p>
+                  {isOverBudgetTotal && (
+                    <p className="text-[10px] text-red-500 dark:text-red-400 mt-0.5">+{selectedCurrency.symbol}{overBudgetAmountTotal.toLocaleString()} over</p>
+                  )}
+                </div>
+                <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-3">
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">Paid</p>
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
+                    {selectedCurrency.symbol}{expenseTotals.totalPaid.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
+                  <p className="text-xs text-amber-600 dark:text-amber-400">Pending</p>
+                  <p className="text-lg font-bold text-amber-700 dark:text-amber-300">
+                    {selectedCurrency.symbol}{Math.max(0, expenseTotals.totalPending).toLocaleString()}
+                  </p>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+              {/* Progress bar */}
+              {expenseTotals.totalActual > 0 && (
+                <div className="mt-4">
+                  <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+                    <span>Payment Progress</span>
+                    <span className={isOverPaidTotal ? 'text-orange-500 dark:text-orange-400' : ''}>
+                      {displayPercentage}%{isOverPaidTotal && ' (Overpaid)'}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-500 ${isOverPaidTotal ? 'bg-orange-500' : 'bg-emerald-500'}`}
+                      style={{ width: `${displayPercentage}%` }}
+                    />
+                  </div>
+                  {isOverPaidTotal && (
+                    <p className="text-xs text-orange-500 dark:text-orange-400 mt-1">
+                      ⚠️ Paid {selectedCurrency.symbol}{(expenseTotals.totalPaid - expenseTotals.totalActual).toLocaleString()} more than total bills
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <button 
           onClick={handleCalculate}
