@@ -82,6 +82,17 @@ export interface WeddingEvent {
   type: 'custom';
 }
 
+// Per-event cached prayer times data
+export interface CachedPrayerData {
+  prayerTimes: PrayerTime[];
+  sunrise: string; // For Fajr deadline
+  hijriDate: string;
+  fetchedAt: string; // ISO timestamp
+  // Calculated Fiqh times
+  islamicMidnight: string; // Midpoint between Maghrib and next Fajr
+  asrMakruhStart: string; // 20 mins before Maghrib (when sun turns yellow)
+}
+
 // Single event timeline configuration (used per-event)
 export interface EventTimelineConfig {
   date: string; // YYYY-MM-DD
@@ -90,6 +101,8 @@ export interface EventTimelineConfig {
   method: number; // Calculation method (1-5)
   school: number; // 0 = Standard (Shafi/Maliki/Hanbali), 1 = Hanafi
   events: WeddingEvent[];
+  // Per-event cached prayer times
+  cachedPrayerData?: CachedPrayerData;
 }
 
 // Multi-event timeline data structure
@@ -133,7 +146,15 @@ export interface PrayerConflictInfo {
   prayer: PrayerTime;
   deadline: string; // Time by which prayer must be completed
   deadlineName: string; // e.g., "Asr" or "Sunrise"
-  severity: 'warning' | 'high'; // warning = can delay, high = Jummah (cannot delay)
+  // Severity levels:
+  // - 'info': Just informational, prayer can easily be delayed
+  // - 'warning': Entering less ideal time, but still valid
+  // - 'makruh': Approaching Makruh (disliked) time - e.g., late Asr when sun yellows
+  // - 'critical': Very close to hard deadline - e.g., near Sunrise for Fajr
+  // - 'high': Cannot delay at all - e.g., Jummah (must attend congregation)
+  severity: 'info' | 'warning' | 'makruh' | 'critical' | 'high';
+  // Additional context for the warning message
+  warningMessage?: string;
 }
 
 // Guest Manager Types

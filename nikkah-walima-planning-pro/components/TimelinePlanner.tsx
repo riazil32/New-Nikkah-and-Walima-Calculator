@@ -10,7 +10,8 @@ import {
   EventTimelineConfig,
   WeddingEventConfig,
   GuestManagerData,
-  PrayerConflictInfo
+  PrayerConflictInfo,
+  CachedPrayerData
 } from '../types';
 import { Clock, Plus, Trash, Edit, AlertTriangle, MapPin, RefreshCw, X, Info, ChevronDown } from './Icons';
 import { Combobox } from './Combobox';
@@ -191,18 +192,49 @@ const getEffectiveEndMinutes = (startTime: string, endTime: string): number => {
   return endMinutes;
 };
 
+// Calculate Islamic Midnight: midpoint between Maghrib and next Fajr
+// Formula: Maghrib + ((NextFajr - Maghrib) / 2)
+const calculateIslamicMidnight = (maghribTime: string, fajrTime: string): string => {
+  const maghribMins = timeToMinutes(maghribTime);
+  // Fajr is next day, so add 24 hours
+  const fajrMins = timeToMinutes(fajrTime) + 24 * 60;
+  const midnightMins = maghribMins + Math.floor((fajrMins - maghribMins) / 2);
+  return minutesToTime(midnightMins % (24 * 60));
+};
+
+// Calculate Asr Makruh start time: ~20 mins before Maghrib (when sun starts yellowing)
+const calculateAsrMakruhStart = (maghribTime: string): string => {
+  const maghribMins = timeToMinutes(maghribTime);
+  const makruhMins = Math.max(0, maghribMins - 20);
+  return minutesToTime(makruhMins);
+};
+
+// Calculate Fiqh times from prayer times
+const calculateFiqhTimes = (prayerTimes: PrayerTime[]): { islamicMidnight: string; asrMakruhStart: string } => {
+  const maghrib = prayerTimes.find(p => p.name === 'Maghrib');
+  const fajr = prayerTimes.find(p => p.name === 'Fajr');
+  
+  return {
+    islamicMidnight: maghrib && fajr ? calculateIslamicMidnight(maghrib.time, fajr.time) : '00:00',
+    asrMakruhStart: maghrib ? calculateAsrMakruhStart(maghrib.time) : '18:00'
+  };
+};
+
 // Check if an event conflicts with ANY prayer times (returns ALL conflicts with deadline info)
+// Enhanced with Fiqh-compliant warnings (Makruh zones, Islamic Midnight)
 const checkConflicts = (
   event: WeddingEvent, 
   prayerTimes: PrayerTime[],
-  sunrise: string
+  sunrise: string,
+  islamicMidnight: string,
+  asrMakruhStart: string
 ): PrayerConflictInfo[] => {
   const eventStart = timeToMinutes(event.startTime);
   const eventEnd = getEffectiveEndMinutes(event.startTime, event.endTime);
   const conflicts: PrayerConflictInfo[] = [];
   
-  // Create a map for finding next prayer
-  const prayerOrder = ['Fajr', 'Dhuhr', 'Jummah', 'Asr', 'Maghrib', 'Isha'];
+  const asrMakruhMins = timeToMinutes(asrMakruhStart);
+  const islamicMidnightMins = timeToMinutes(islamicMidnight);
   
   for (let i = 0; i < prayerTimes.length; i++) {
     const prayer = prayerTimes[i];
@@ -211,32 +243,68 @@ const checkConflicts = (
     
     // Check if event overlaps with prayer time window
     if (eventStart < prayerEnd && eventEnd > prayerStart) {
-      // Determine the deadline (when the prayer MUST be completed by)
+      // Determine the deadline and severity based on Fiqh rules
       let deadline: string;
       let deadlineName: string;
-      let severity: 'warning' | 'high' = 'warning';
+      let severity: 'info' | 'warning' | 'makruh' | 'critical' | 'high' = 'warning';
+      let warningMessage: string | undefined;
       
       if (prayer.name === 'Fajr') {
-        // Fajr must be completed before Sunrise
+        // Fajr must be completed before Sunrise - this is CRITICAL
         deadline = sunrise;
         deadlineName = 'Sunrise';
+        severity = 'critical';
+        warningMessage = `Fajr ends sharply at Sunrise (${formatTimeDisplay(sunrise)}). Must pray before then.`;
       } else if (prayer.name === 'Jummah') {
         // Jummah is time-sensitive - cannot delay, must attend congregation
-        // Find Asr time as theoretical deadline
         const asrPrayer = prayerTimes.find(p => p.name === 'Asr');
         deadline = asrPrayer?.time || '';
         deadlineName = 'Asr';
-        severity = 'high'; // High priority - cannot skip Jummah
+        severity = 'high'; // Highest priority - cannot skip Jummah
+        warningMessage = 'Jummah congregation cannot be delayed. Consider rescheduling this event.';
+      } else if (prayer.name === 'Asr') {
+        // Asr has Makruh zone (20 mins before Maghrib when sun yellows)
+        const maghrib = prayerTimes.find(p => p.name === 'Maghrib');
+        if (maghrib) {
+          deadline = maghrib.time;
+          deadlineName = 'Maghrib';
+          
+          // Check if event pushes into Makruh zone
+          if (eventEnd > asrMakruhMins) {
+            severity = 'makruh';
+            warningMessage = `Recommended to pray Asr before ${formatTimeDisplay(asrMakruhStart)} (sun yellowing). Disliked to delay further.`;
+          } else {
+            warningMessage = `Ensure Asr before ${formatTimeDisplay(asrMakruhStart)} (preferred) or latest by Maghrib.`;
+          }
+        } else {
+          deadline = '18:30';
+          deadlineName = 'Maghrib';
+        }
+      } else if (prayer.name === 'Isha') {
+        // Isha preferred time ends at Islamic Midnight
+        deadline = islamicMidnight;
+        deadlineName = 'Islamic Midnight';
+        
+        // Check if event goes past Islamic Midnight
+        // Handle cross-midnight properly
+        const eventEndNormalized = eventEnd > 24 * 60 ? eventEnd - 24 * 60 : eventEnd;
+        if (eventEndNormalized > islamicMidnightMins || eventEnd > 24 * 60) {
+          severity = 'warning';
+          warningMessage = `Preferred Isha time ends at Islamic Midnight (${formatTimeDisplay(islamicMidnight)}). Valid until Fajr but discouraged.`;
+        } else {
+          severity = 'info';
+          warningMessage = `Ensure Isha before Islamic Midnight (${formatTimeDisplay(islamicMidnight)}) for preferred time.`;
+        }
       } else {
-        // For other prayers, deadline is the next prayer
+        // Dhuhr/Maghrib - standard next prayer deadline
         const nextPrayer = prayerTimes[i + 1];
         if (nextPrayer) {
           deadline = nextPrayer.time;
           deadlineName = nextPrayer.name;
+          warningMessage = `Ensure prayer before ${deadlineName} (${formatTimeDisplay(deadline)}).`;
         } else {
-          // Isha - deadline is Fajr (next day), but we'll show a reasonable time
           deadline = '23:59';
-          deadlineName = 'Midnight';
+          deadlineName = 'end of day';
         }
       }
       
@@ -244,7 +312,8 @@ const checkConflicts = (
         prayer,
         deadline,
         deadlineName,
-        severity
+        severity,
+        warningMessage
       });
     }
   }
@@ -340,8 +409,40 @@ export const TimelinePlanner: React.FC = () => {
     }));
   };
   
-  // Prayer times from API
-  const { prayerTimes, sunrise, hijriDate, locationInfo, loading, error, fetchPrayerTimes } = usePrayerTimes();
+  // Prayer times from API hook (used for fetching, not as primary state)
+  const { prayerTimes: fetchedPrayerTimes, sunrise: fetchedSunrise, hijriDate: fetchedHijriDate, locationInfo, loading, error, fetchPrayerTimes } = usePrayerTimes();
+  
+  // Get prayer times from per-event cached data (PRIMARY SOURCE)
+  const cachedData = currentTimeline.cachedPrayerData;
+  const prayerTimes = cachedData?.prayerTimes || [];
+  const sunrise = cachedData?.sunrise || '';
+  const hijriDate = cachedData?.hijriDate || '';
+  const islamicMidnight = cachedData?.islamicMidnight || '';
+  const asrMakruhStart = cachedData?.asrMakruhStart || '';
+  
+  // When new prayer times are fetched, store them in the current event's cache
+  useEffect(() => {
+    if (fetchedPrayerTimes.length > 0 && fetchedSunrise) {
+      const fiqhTimes = calculateFiqhTimes(fetchedPrayerTimes);
+      
+      const newCachedData: CachedPrayerData = {
+        prayerTimes: fetchedPrayerTimes,
+        sunrise: fetchedSunrise,
+        hijriDate: fetchedHijriDate,
+        fetchedAt: new Date().toISOString(),
+        islamicMidnight: fiqhTimes.islamicMidnight,
+        asrMakruhStart: fiqhTimes.asrMakruhStart
+      };
+      
+      // Only update if different from current cache
+      if (JSON.stringify(newCachedData.prayerTimes) !== JSON.stringify(cachedData?.prayerTimes)) {
+        setTimelineData(prev => ({
+          ...prev,
+          cachedPrayerData: newCachedData
+        }));
+      }
+    }
+  }, [fetchedPrayerTimes, fetchedSunrise, fetchedHijriDate]);
   
   // UI state
   const [showEventModal, setShowEventModal] = useState(false);
@@ -416,9 +517,15 @@ export const TimelinePlanner: React.FC = () => {
       items.push({ ...prayer });
     });
     
-    // Add events with conflict info
+    // Add events with conflict info (using Fiqh-compliant checking)
     timelineData.events.forEach(event => {
-      const conflictInfo = checkConflicts(event, prayerTimes, sunrise);
+      const conflictInfo = checkConflicts(
+        event, 
+        prayerTimes, 
+        sunrise, 
+        islamicMidnight || calculateFiqhTimes(prayerTimes).islamicMidnight,
+        asrMakruhStart || calculateFiqhTimes(prayerTimes).asrMakruhStart
+      );
       const crossesMidnight = isCrossMidnight(event.startTime, event.endTime);
       const isPrayerEvent = isPrayerRelatedEvent(event.name);
       items.push({ 
@@ -437,7 +544,7 @@ export const TimelinePlanner: React.FC = () => {
     });
     
     return items;
-  }, [prayerTimes, timelineData.events, sunrise]);
+  }, [prayerTimes, timelineData.events, sunrise, islamicMidnight, asrMakruhStart]);
   
   // Load a timeline template
   const loadTemplate = (templateId: 'afternoonNikkah' | 'eveningWalima') => {
@@ -977,16 +1084,18 @@ export const TimelinePlanner: React.FC = () => {
                     return (
                     <React.Fragment key={item.type === 'fixed' ? `prayer-${item.name}` : (item as WeddingEvent).id}>
                     <div className="relative pl-12 md:pl-16">
-                      {/* Timeline dot */}
+                      {/* Timeline dot - color based on conflict severity */}
                       <div className={`absolute left-2 md:left-4 w-4 h-4 rounded-full border-2 ${
                         item.type === 'fixed'
                           ? 'bg-amber-100 border-amber-500'
                           : (item as any).conflictInfo?.length > 0
                             ? (item as any).isPrayerEvent
                               ? 'bg-emerald-100 border-emerald-500' // Green dot for prayer events
-                              : (item as any).conflictInfo.some((c: PrayerConflictInfo) => c.severity === 'high')
-                                ? 'bg-red-100 border-red-500' // Red for Jummah conflicts
-                                : 'bg-amber-100 border-amber-500' // Amber for warnings
+                              : (item as any).conflictInfo.some((c: PrayerConflictInfo) => c.severity === 'high' || c.severity === 'critical')
+                                ? 'bg-red-100 border-red-500' // Red for critical/Jummah
+                                : (item as any).conflictInfo.some((c: PrayerConflictInfo) => c.severity === 'makruh')
+                                  ? 'bg-orange-100 border-orange-500' // Orange for Makruh zone
+                                  : 'bg-amber-100 border-amber-500' // Amber for warnings
                             : 'bg-emerald-100 border-emerald-500'
                       }`} />
 
@@ -1014,46 +1123,57 @@ export const TimelinePlanner: React.FC = () => {
                         </div>
                       ) : (
                         // Custom Event Card
-                        <div className={`rounded-2xl p-4 ${
-                          (item as any).conflictInfo?.length > 0
-                            ? (item as any).isPrayerEvent
-                              ? 'bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-300 dark:border-emerald-700'
-                              : (item as any).conflictInfo.some((c: PrayerConflictInfo) => c.severity === 'high')
-                                ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700'
-                                : 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700'
-                            : 'bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600'
-                        }`}>
-                          {/* Conflict Message - green for prayer events, yellow warning for delays, red for Jummah */}
+                        <div className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-2xl p-4">
+                          {/* Conflict Alert Banners - distinct style from event cards */}
                           {(item as any).conflictInfo?.length > 0 && (
                             (item as any).isPrayerEvent ? (
-                              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold mb-2">
-                                <span>✓</span>
-                                <span>Scheduled during prayer time</span>
-                              </div>
-                            ) : (item as any).conflictInfo.some((c: PrayerConflictInfo) => c.severity === 'high') ? (
-                              // High priority - Jummah conflict
-                              <div className="flex items-start gap-2 text-red-600 dark:text-red-400 text-sm font-semibold mb-2">
-                                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                                <div>
-                                  <span className="block">
-                                    ⚠️ Overlaps with Jummah Prayer
-                                  </span>
-                                  <span className="block text-xs font-normal mt-0.5">
-                                    Jummah congregation cannot be delayed. Consider rescheduling this event.
-                                  </span>
+                              // Green success banner for prayer-related events
+                              <div className="border-l-4 border-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-r-lg px-3 py-2 mb-3">
+                                <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-sm font-medium">
+                                  <span>✓</span>
+                                  <span>Scheduled during prayer time</span>
                                 </div>
                               </div>
                             ) : (
-                              // Yellow warning - can delay prayer
-                              <div className="flex items-start gap-2 text-amber-600 dark:text-amber-400 text-sm mb-2">
-                                <span className="text-base mt-0.5">⚠️</span>
-                                <div>
-                                  {(item as any).conflictInfo.map((conflict: PrayerConflictInfo, idx: number) => (
-                                    <span key={conflict.prayer.name} className="block">
-                                      Overlaps {conflict.prayer.name}. Ensure prayer before {conflict.deadlineName} ({formatTimeDisplay(conflict.deadline)})
-                                    </span>
-                                  ))}
-                                </div>
+                              // Warning banners based on severity
+                              <div className="space-y-2 mb-3">
+                                {(item as any).conflictInfo.map((conflict: PrayerConflictInfo, idx: number) => {
+                                  // Determine banner style based on severity
+                                  const severityStyles = {
+                                    high: 'border-red-500 bg-red-500/10 dark:bg-red-500/5 text-red-700 dark:text-red-400',
+                                    critical: 'border-red-500 bg-red-500/10 dark:bg-red-500/5 text-red-700 dark:text-red-400',
+                                    makruh: 'border-orange-500 bg-orange-500/10 dark:bg-orange-500/5 text-orange-700 dark:text-orange-400',
+                                    warning: 'border-amber-500 bg-amber-500/10 dark:bg-amber-500/5 text-amber-700 dark:text-amber-400',
+                                    info: 'border-blue-500 bg-blue-500/10 dark:bg-blue-500/5 text-blue-700 dark:text-blue-400'
+                                  };
+                                  const severityIcons = {
+                                    high: '⛔',
+                                    critical: '⚠️',
+                                    makruh: '⚡',
+                                    warning: '⏰',
+                                    info: 'ℹ️'
+                                  };
+                                  const style = severityStyles[conflict.severity] || severityStyles.warning;
+                                  const icon = severityIcons[conflict.severity] || severityIcons.warning;
+                                  
+                                  return (
+                                    <div key={conflict.prayer.name} className={`border-l-4 ${style} rounded-r-lg px-3 py-2`}>
+                                      <div className="flex items-start gap-2 text-sm">
+                                        <span className="flex-shrink-0">{icon}</span>
+                                        <div>
+                                          <span className="font-medium block">
+                                            Overlaps {conflict.prayer.name}
+                                          </span>
+                                          {conflict.warningMessage && (
+                                            <span className="text-xs opacity-90 block mt-0.5">
+                                              {conflict.warningMessage}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )
                           )}
