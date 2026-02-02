@@ -35,16 +35,24 @@ Transform the single-timeline system to support multiple events (Nikkah, Walima,
 ## Implementation Order
 1. ✅ Update types.ts with new data structures
 2. ✅ Update usePrayerTimes.ts to include Sunrise
-3. [ ] Refactor TimelinePlanner.tsx:
-   a. Add shared events config reader
-   b. Add event tabs UI
-   c. Update data handling for multi-event
-   d. Update conflict logic with warnings
-   e. Add template loading
-4. [ ] Test migration of existing data
-5. [ ] Commit and deploy
+3. ✅ Refactor TimelinePlanner.tsx:
+   a. ✅ Add shared events config reader (from Guest Manager)
+   b. ✅ Add event tabs UI
+   c. ✅ Update data handling for multi-event
+   d. ✅ Update conflict logic with warnings
+   e. ✅ Add template loading
+4. ✅ Auto-migration of legacy single timeline data
+5. ✅ Build passes, committed
 
-## Files to Modify
+## Files Modified
 - `types.ts` ✅
 - `hooks/usePrayerTimes.ts` ✅
-- `components/TimelinePlanner.tsx` (major refactor)
+- `components/TimelinePlanner.tsx` ✅ (major refactor - 383 additions)
+
+## Completed Features
+- Event tabs synced with Guest Manager events
+- Per-event timeline storage
+- Warning-based conflict detection with deadlines
+- Fajr → Sunrise deadline
+- Jummah → High priority (cannot delay)
+- Template loading (Afternoon Nikkah, Evening Walima)
