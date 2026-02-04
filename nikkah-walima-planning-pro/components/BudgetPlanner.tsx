@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Users, Calculator, Sparkles, ChevronDown, Edit, Check, X } from './Icons';
-import { BUDGET_CATEGORIES, CURRENCIES, SECTION_LABELS } from '../constants';
+import { BUDGET_CATEGORIES, CURRENCIES, SECTION_LABELS, MAHR_TYPES } from '../constants';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { BudgetCategory, Payer, CategorySection, CategoryExpense, PaymentStatus, BudgetTemplate } from '../types';
 
@@ -85,7 +85,11 @@ const migrateCategoryData = (data: CategoryDataMap): CategoryDataMap => {
   return migrated;
 };
 
-export const BudgetPlanner: React.FC = () => {
+interface BudgetPlannerProps {
+  onNavigateToMahr?: () => void;
+}
+
+export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }) => {
   // Persisted state
   const [totalBudget, setTotalBudget] = useLocalStorage<string>('budget-totalBudget', '20000');
   const [guestCount, setGuestCount] = useLocalStorage<string>('budget-guestCount', '150');
@@ -145,6 +149,36 @@ export const BudgetPlanner: React.FC = () => {
     setHasSeenPayerTip(true);
   };
 
+  // Silver price for Mahr calculations (shared with MahrCalculator via localStorage)
+  const [silverPricePerGram, setSilverPricePerGram] = useLocalStorage<number>('mahr-silverPrice', 0.85);
+  const [isFetchingSilver, setIsFetchingSilver] = useState(false);
+  const [silverLastUpdated, setSilverLastUpdated] = useState<string | null>(null);
+
+  // Fetch live silver price
+  const fetchSilverPrice = async () => {
+    setIsFetchingSilver(true);
+    try {
+      const response = await fetch(`/api/silver-price?currency=${selectedCurrency.code}`);
+      const data = await response.json();
+      if (data.price) {
+        setSilverPricePerGram(data.price);
+        setSilverLastUpdated(new Date().toLocaleTimeString());
+      }
+    } catch (error) {
+      console.error("Error fetching silver price:", error);
+    } finally {
+      setIsFetchingSilver(false);
+    }
+  };
+
+  // Calculate Mahr amounts based on silver price
+  const mahrAmounts = useMemo(() => {
+    return MAHR_TYPES.map(type => ({
+      ...type,
+      value: Math.round(type.grams * silverPricePerGram)
+    }));
+  }, [silverPricePerGram]);
+
   const budget = parseFloat(totalBudget) || 0;
   const guests = parseInt(guestCount) || 0;
 
@@ -153,16 +187,25 @@ export const BudgetPlanner: React.FC = () => {
     return [...BUDGET_CATEGORIES, ...customCategories];
   }, [customCategories]);
 
-  // Calculate total percentage
+  // Calculate total percentage (excluding Mahr - it's a religious obligation, not a party expense)
   const totalPercentage = useMemo(() => {
-    return Object.values(categoryData).reduce<number>((sum, data) => {
+    return Object.entries(categoryData).reduce<number>((sum, [key, data]) => {
+      // Exclude Mahr from budget limit calculation
+      if (key === 'mahr') return sum;
       const d = data as CategoryExpense;
       return sum + (d?.percentage || 0);
     }, 0);
   }, [categoryData]);
 
+  // Calculate Mahr separately - use actualCost directly, not percentage-based calculation
+  const mahrData = categoryData['mahr'] as CategoryExpense | undefined;
+  const mahrActualCost = mahrData?.actualCost || 0; // The actual Mahr amount entered/selected
+
   const isOverBudget = totalPercentage > 100;
   const totalAllocated = (budget * totalPercentage) / 100;
+  
+  // Grand total including Mahr (for "Total Cash Required")
+  const grandTotalRequired = Math.round(totalAllocated + mahrActualCost);
 
   // Validation
   const budgetError = useMemo(() => {
@@ -299,10 +342,12 @@ export const BudgetPlanner: React.FC = () => {
     handlePayerChange(key, nextPayer);
   };
 
-  // Calculate totals by payer
+  // Calculate totals by payer (excluding Mahr - it's tracked separately)
   const payerTotals = useMemo(() => {
     const totals: Record<Payer, number> = { joint: 0, groom: 0, bride: 0 };
-    Object.entries(categoryData).forEach(([_key, data]) => {
+    Object.entries(categoryData).forEach(([key, data]) => {
+      // Exclude Mahr from payer breakdown - it's a separate religious obligation
+      if (key === 'mahr') return;
       const d = data as CategoryExpense;
       if (d?.percentage > 0) {
         const amount = Math.round((budget * d.percentage) / 100);
@@ -410,7 +455,13 @@ export const BudgetPlanner: React.FC = () => {
     }));
   };
 
-  // Group categories by section
+  // Get the Mahr category separately (it's rendered as a standalone section)
+  const mahrCategory = useMemo(() => 
+    allCategories.find(cat => cat.key === 'mahr'),
+    [allCategories]
+  );
+
+  // Group categories by section (excluding Mahr - it has its own section)
   const categoriesBySection = useMemo(() => {
     const sections: Record<CategorySection, BudgetCategory[]> = {
       events: [],
@@ -419,6 +470,8 @@ export const BudgetPlanner: React.FC = () => {
     };
     
     allCategories.forEach(cat => {
+      // Skip Mahr - it's rendered separately at the top
+      if (cat.key === 'mahr') return;
       sections[cat.section].push(cat);
     });
     
@@ -501,6 +554,7 @@ export const BudgetPlanner: React.FC = () => {
     const isCustom = cat.isCustom;
     const isExpanded = expandedCard === cat.key;
     const showTooltip = isFirst && showPayerTip && isExpanded;
+    const isMahr = cat.key === 'mahr'; // Special handling for Mahr
     
     // Calculate warning states
     const isOverBudget = totalBill > 0 && totalBill > amount;
@@ -509,10 +563,11 @@ export const BudgetPlanner: React.FC = () => {
     const overPaidAmount = isOverPaid ? amountPaid - totalBill : 0;
     const pendingAmount = Math.max(0, totalBill - amountPaid);
     
-    // Determine card border based on status
+    // Determine card border based on status (Mahr gets special cyan/teal styling)
     const getCardBorderStyle = () => {
       if (isOverBudget) return 'border-l-red-500 dark:border-l-red-400';
       if (isOverPaid) return 'border-l-orange-500 dark:border-l-orange-400';
+      if (isMahr) return 'border-l-cyan-500 dark:border-l-cyan-400'; // Distinct color for Mahr
       switch (payer) {
         case 'groom': return 'border-l-teal-500 dark:border-l-teal-400';
         case 'bride': return 'border-l-rose-500 dark:border-l-rose-400';
@@ -520,8 +575,13 @@ export const BudgetPlanner: React.FC = () => {
       }
     };
     
+    // Mahr gets a special background to distinguish it
+    const cardBgClass = isMahr 
+      ? 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-700' 
+      : 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600';
+    
     return (
-      <div key={cat.key} className={`rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 border-l-4 ${getCardBorderStyle()} relative group transition-all`}>
+      <div key={cat.key} className={`rounded-xl ${cardBgClass} border border-l-4 ${getCardBorderStyle()} relative group transition-all`}>
         {/* COLLAPSED HEADER - Always visible, clickable to expand */}
         <button
           onClick={() => setExpandedCard(isExpanded ? null : cat.key)}
@@ -542,8 +602,14 @@ export const BudgetPlanner: React.FC = () => {
                     {isCustom && (
                       <span className="text-[10px] bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400 px-1 py-0.5 rounded uppercase font-bold">Custom</span>
                     )}
-                    {/* Payer indicator (read-only) - visible in collapsed state */}
-                    {!isExpanded && percentage > 0 && (
+                    {/* Mahr - Religious Obligation badge */}
+                    {isMahr && (
+                      <span className="text-[10px] bg-cyan-100 dark:bg-cyan-800/50 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded font-bold" title="Excluded from wedding budget - tracked separately">
+                        ☪️ Obligation
+                      </span>
+                    )}
+                    {/* Payer indicator (read-only) - visible in collapsed state (not for Mahr) */}
+                    {!isExpanded && percentage > 0 && !isMahr && (
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold flex items-center gap-0.5 ${
                         payer === 'groom' 
                           ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300' 
@@ -835,6 +901,239 @@ export const BudgetPlanner: React.FC = () => {
     );
   };
 
+  // Render the standalone Mahr section (Religious Obligations - shown at top)
+  const renderMahrSection = () => {
+    if (!mahrCategory) return null;
+    
+    const data = categoryData[mahrCategory.key] || { percentage: 0, payer: 'groom', paymentStatus: 'pending' as PaymentStatus };
+    const percentage = data.percentage;
+    const amount = Math.round((budget * percentage) / 100);
+    const totalBill = data.actualCost || 0;
+    const amountPaid = data.amountPaid || 0;
+    const isExpanded = expandedCard === 'mahr';
+
+    // Auto-fill Mahr from selected type (toggle - click again to deselect)
+    const selectMahrType = (value: number) => {
+      const isAlreadySelected = totalBill === value;
+      
+      if (isAlreadySelected) {
+        // Deselect - clear the value
+        setCategoryData((prev: CategoryDataMap) => ({
+          ...prev,
+          'mahr': {
+            ...prev['mahr'],
+            percentage: 0,
+            actualCost: 0
+          }
+        }));
+      } else {
+        // Select - set the value
+        const newPercentage = budget > 0 ? Math.round((value / budget) * 100) : 0;
+        setCategoryData((prev: CategoryDataMap) => ({
+          ...prev,
+          'mahr': {
+            ...prev['mahr'],
+            percentage: newPercentage,
+            actualCost: value
+          }
+        }));
+      }
+    };
+
+    return (
+      <div className="mb-6">
+        {/* Mahr Card - Standalone at top */}
+        <div className="rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-700 border-l-4 border-l-cyan-500 dark:border-l-cyan-400">
+          {/* Collapsed Header */}
+          <button
+            onClick={() => setExpandedCard(isExpanded ? null : 'mahr')}
+            className="w-full p-3 text-left"
+          >
+            <div className="flex items-start gap-2">
+              <span className="text-lg flex-shrink-0 w-6 text-center">💎</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm">Mahr (Groom's Obligation)</span>
+                  <span className="text-[10px] bg-cyan-100 dark:bg-cyan-800/50 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded font-bold">
+                    ☪️ Excluded from Budget
+                  </span>
+                </div>
+                
+                {/* Summary when collapsed */}
+                {!isExpanded && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {totalBill > 0 ? (
+                      <>Amount: {selectedCurrency.symbol}{totalBill.toLocaleString()} • Paid: {selectedCurrency.symbol}{amountPaid.toLocaleString()}</>
+                    ) : amount > 0 ? (
+                      <>Allocated: {selectedCurrency.symbol}{amount.toLocaleString()}</>
+                    ) : (
+                      <>Tap to set Mahr amount</>
+                    )}
+                  </p>
+                )}
+              </div>
+              <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+          
+          {/* Expanded Content */}
+          {isExpanded && (
+            <div className="px-3 pb-4 border-t border-cyan-200 dark:border-cyan-700">
+              {/* Info Box */}
+              <div className="bg-cyan-100/50 dark:bg-cyan-800/30 rounded-lg p-3 my-3 text-[13px] text-cyan-800 dark:text-cyan-200">
+                <p>Mahr is a religious obligation from groom to bride - not a wedding expense. It's tracked separately from your wedding budget.</p>
+              </div>
+
+              {/* Smart Select Chips - Sunnah Guidelines */}
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Sunnah Guidelines
+                  </p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); fetchSilverPrice(); }}
+                    disabled={isFetchingSilver}
+                    className="text-xs font-medium bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    <span className={isFetchingSilver ? 'animate-spin' : ''}>🔄</span>
+                    {isFetchingSilver ? 'Updating...' : 'Update Prices'}
+                  </button>
+                </div>
+                
+                {silverLastUpdated && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 -mt-1">
+                    Last updated: {silverLastUpdated}
+                  </p>
+                )}
+                
+                <div className="grid grid-cols-3 gap-2">
+                  {mahrAmounts.map((mahr) => {
+                    // Meaningful religious context descriptions
+                    const descriptions: Record<string, string> = {
+                      'minimum': '10 Dirhams (Hanafi)',
+                      'azwaj': "Prophet's ﷺ wives",
+                      'fatimi': 'Ali (RA) to Fatima (RA)'
+                    };
+                    
+                    // Check if this option is currently selected
+                    const isSelected = totalBill === mahr.value;
+                    
+                    return (
+                      <button
+                        key={mahr.id}
+                        onClick={(e) => { e.stopPropagation(); selectMahrType(mahr.value); }}
+                        className={`relative p-2 rounded-lg border-2 text-center transition-all cursor-pointer
+                          active:scale-95 hover:shadow-md ${
+                          isSelected ? 'ring-2 ring-offset-2 dark:ring-offset-slate-800' : ''
+                        } ${
+                          mahr.id === 'minimum' 
+                            ? `border-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 ${isSelected ? 'ring-cyan-500' : ''}` 
+                            : mahr.id === 'azwaj'
+                              ? `border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 ${isSelected ? 'ring-emerald-500' : ''}`
+                              : `border-purple-400 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 ${isSelected ? 'ring-purple-500' : ''}`
+                        }`}
+                      >
+                        {/* Selected indicator */}
+                        {isSelected && (
+                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center text-white text-[10px]">✓</span>
+                        )}
+                        <p className={`text-[10px] font-bold uppercase tracking-wide ${
+                          mahr.id === 'minimum' ? 'text-cyan-700 dark:text-cyan-300' 
+                            : mahr.id === 'azwaj' ? 'text-emerald-700 dark:text-emerald-300' 
+                            : 'text-purple-700 dark:text-purple-300'
+                        }`}>
+                          {mahr.id === 'azwaj' ? 'Sunnah' : mahr.id === 'minimum' ? 'Minimum' : 'Fatimi'}
+                        </p>
+                        <p className={`text-base font-black ${
+                          mahr.id === 'minimum' ? 'text-cyan-800 dark:text-cyan-200' 
+                            : mahr.id === 'azwaj' ? 'text-emerald-800 dark:text-emerald-200' 
+                            : 'text-purple-800 dark:text-purple-200'
+                        }`}>
+                          {selectedCurrency.symbol}{mahr.value.toLocaleString()}
+                        </p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                          {mahr.grams.toFixed(0)}g Silver
+                        </p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
+                          {descriptions[mahr.id]}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                {/* Link to Mahr page - styled as a button */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); onNavigateToMahr?.(); }}
+                  className="w-full mt-3 py-2 px-3 text-sm font-medium text-cyan-700 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-900/40 hover:bg-cyan-200 dark:hover:bg-cyan-900/60 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>📖</span> View full history & sources in Mahr Calculator
+                  <span className="text-cyan-500">→</span>
+                </button>
+              </div>
+
+              {/* Manual Input Section */}
+              <div className="space-y-3 pt-3 border-t border-cyan-200 dark:border-cyan-700">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Mahr Amount:
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 text-sm font-medium">{selectedCurrency.symbol}</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={totalBill || ''}
+                      onChange={(e) => {
+                        const filtered = e.target.value.replace(/[^0-9.]/g, '');
+                        const val = parseFloat(filtered) || 0;
+                        setCategoryData((prev: CategoryDataMap) => ({
+                          ...prev,
+                          'mahr': {
+                            ...prev['mahr'],
+                            actualCost: val,
+                            percentage: budget > 0 ? Math.round((val / budget) * 100) : 0
+                          }
+                        }));
+                      }}
+                      placeholder="Enter Mahr amount"
+                      className="w-full pl-8 pr-3 py-2.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                
+                {/* Amount Paid */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Amount Paid:
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 text-sm font-medium">{selectedCurrency.symbol}</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={amountPaid || ''}
+                      onChange={(e) => {
+                        const filtered = e.target.value.replace(/[^0-9.]/g, '');
+                        const val = parseFloat(filtered) || 0;
+                        setCategoryData((prev: CategoryDataMap) => ({
+                          ...prev,
+                          'mahr': { ...prev['mahr'], amountPaid: val }
+                        }));
+                      }}
+                      placeholder="0"
+                      className="w-full pl-8 pr-3 py-2.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // Render a section (collapsible accordion)
   const renderSection = (section: CategorySection, isFirstSection: boolean = false) => {
     const categories = categoriesBySection[section];
@@ -1096,72 +1395,115 @@ export const BudgetPlanner: React.FC = () => {
           </div>
         )}
         
-        {/* Render sections */}
+        {/* Render Mahr first (Religious Obligations) */}
+        {renderMahrSection()}
+        
+        {/* Render other sections */}
         {renderSection('events', true)}
         {renderSection('personal')}
         {renderSection('logistics')}
       </div>
 
-      {/* Total Summary */}
-      <div className={`rounded-2xl p-4 md:p-6 mb-6 transition-all ${
+      {/* Budget Health Status - Compact "Status Badge" style */}
+      <div className={`rounded-xl p-3 md:p-4 mb-4 transition-all ${
         isOverBudget 
-          ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 border-2 border-red-300 dark:border-red-700 md:shadow-lg md:shadow-red-100 dark:md:shadow-red-900/30' 
-          : 'bg-emerald-50 dark:bg-emerald-900/30 border-2 border-emerald-200 dark:border-emerald-700'
+          ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 border border-red-300 dark:border-red-700' 
+          : 'bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700'
       }`}>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2">
+          {/* Main status row - compact */}
           <div className="flex justify-between items-center">
-            <div>
-              <p className={`text-sm font-semibold ${isOverBudget ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                Total Allocated
-              </p>
-              <p className={`text-2xl md:text-3xl font-bold ${isOverBudget ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
-                {Number.isInteger(totalPercentage) ? totalPercentage : totalPercentage.toFixed(1)}% ({selectedCurrency.symbol}{Math.round(totalAllocated).toLocaleString()})
-              </p>
+            <div className="flex items-center gap-2">
+              <span className={`text-lg ${isOverBudget ? '' : ''}`}>{isOverBudget ? '⚠️' : '✅'}</span>
+              <div>
+                <p className={`text-xs font-medium ${isOverBudget ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {isOverBudget ? 'Over Budget' : 'Budget Status'}
+                </p>
+                <p className={`text-lg font-bold ${isOverBudget ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                  {Number.isInteger(totalPercentage) ? totalPercentage : totalPercentage.toFixed(1)}% Allocated
+                </p>
+              </div>
             </div>
-            {isOverBudget && (
-              <div className="text-right">
-                <div className="hidden md:flex items-center gap-2 justify-end mb-1">
-                  <span className="text-xl">⚠️</span>
-                  <p className="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">Over Budget</p>
-                </div>
-                <p className="text-sm font-semibold text-red-600 dark:text-red-400 md:hidden">Over budget by</p>
-                <p className="text-lg md:text-2xl font-black text-red-700 dark:text-red-300">
-                  +{selectedCurrency.symbol}{Math.round(totalAllocated - budget).toLocaleString()}
+            <div className="text-right">
+              {isOverBudget ? (
+                <p className="text-base font-bold text-red-700 dark:text-red-300">
+                  +{selectedCurrency.symbol}{Math.round(totalAllocated - budget).toLocaleString()} over
                 </p>
-              </div>
-            )}
-            {!isOverBudget && totalPercentage < 100 && (
-              <div className="text-right">
-                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Remaining</p>
-                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
-                  {Number.isInteger(100 - totalPercentage) ? (100 - totalPercentage) : (100 - totalPercentage).toFixed(1)}% ({selectedCurrency.symbol}{Math.round(budget - totalAllocated).toLocaleString()})
+              ) : totalPercentage < 100 ? (
+                <p className="text-base font-semibold text-emerald-700 dark:text-emerald-300">
+                  {selectedCurrency.symbol}{Math.round(budget - totalAllocated).toLocaleString()} remaining
                 </p>
-              </div>
-            )}
+              ) : (
+                <p className="text-base font-semibold text-emerald-700 dark:text-emerald-300">
+                  Fully allocated
+                </p>
+              )}
+            </div>
           </div>
           
-          {/* Payer Breakdown */}
+          {/* Payer Breakdown - inline */}
           {totalAllocated > 0 && (
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200 dark:border-slate-600">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mr-1">By payer:</span>
+            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-200/50 dark:border-slate-600/50">
+              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mr-1">By payer:</span>
               {payerTotals.joint > 0 && (
-                <span className="px-2 py-0.5 rounded text-xs font-bold bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-300">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-300">
                   Joint: {selectedCurrency.symbol}{payerTotals.joint.toLocaleString()}
                 </span>
               )}
               {payerTotals.groom > 0 && (
-                <span className="px-2 py-0.5 rounded text-xs font-bold bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300">
                   Groom: {selectedCurrency.symbol}{payerTotals.groom.toLocaleString()}
                 </span>
               )}
               {payerTotals.bride > 0 && (
-                <span className="px-2 py-0.5 rounded text-xs font-bold bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300">
                   Bride: {selectedCurrency.symbol}{payerTotals.bride.toLocaleString()}
                 </span>
               )}
             </div>
           )}
         </div>
+      </div>
+
+      {/* Financial Summary - Always shown */}
+      <div className="bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/80 rounded-2xl p-4 mb-6 border border-slate-200 dark:border-slate-700 shadow-sm">
+        <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wide">
+          💰 Financial Summary
+        </h3>
+        <div className="space-y-2">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-slate-500 dark:text-slate-400">Wedding Expenses</span>
+            <span className="font-medium text-slate-600 dark:text-slate-300">
+              {selectedCurrency.symbol}{Math.round(totalAllocated).toLocaleString()}
+            </span>
+          </div>
+          {/* Mahr row - only show if Mahr is set */}
+          {mahrActualCost > 0 && (
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-cyan-600 dark:text-cyan-400 flex items-center gap-1">
+                <span>☪️</span> Mahr
+              </span>
+              <span className="font-medium text-cyan-600 dark:text-cyan-400">
+                + {selectedCurrency.symbol}{mahrActualCost.toLocaleString()}
+              </span>
+            </div>
+          )}
+          {/* Hero row - Total Cash Required */}
+          <div className="bg-slate-800 dark:bg-slate-900 rounded-xl p-3 mt-3 -mx-1">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-slate-200 dark:text-slate-300">Total Cash Required</span>
+              <span className="text-2xl md:text-3xl font-black text-white">
+                {selectedCurrency.symbol}{grandTotalRequired.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+        {/* Guidance text - only show if Mahr is set */}
+        {mahrActualCost > 0 && (
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-3 italic text-center">
+            Mahr is tracked separately as a religious obligation, not a wedding expense.
+          </p>
+        )}
       </div>
 
       {/* Expense Tracking Summary */}

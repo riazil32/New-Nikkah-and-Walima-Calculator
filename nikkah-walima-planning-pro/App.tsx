@@ -113,7 +113,7 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="pb-24">
-        {activeTab === 'budget' && <BudgetPlanner />}
+        {activeTab === 'budget' && <BudgetPlanner onNavigateToMahr={() => setActiveTab('mahr')} />}
         {activeTab === 'mahr' && <MahrCalculator />}
         {activeTab === 'contract' && <ContractBuilder />}
         {activeTab === 'timeline' && <TimelinePlanner />}
