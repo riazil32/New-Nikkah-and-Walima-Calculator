@@ -30,72 +30,78 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="hidden md:flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-600">
+            <div className="hidden md:flex bg-slate-100 dark:bg-slate-700 p-1 lg:p-1.5 rounded-2xl border border-slate-200 dark:border-slate-600">
               <button
                 onClick={() => setActiveTab('budget')}
-                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
+                className={`flex items-center justify-center lg:gap-2 px-3 lg:px-4 py-2.5 lg:py-3 rounded-xl font-bold transition-all ${
                   activeTab === 'budget' 
                     ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
+                title="Budget"
               >
                 <Calculator className="w-5 h-5" />
-                Budget
+                <span className="hidden lg:inline">Budget</span>
               </button>
               <button
                 onClick={() => setActiveTab('mahr')}
-                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
+                className={`flex items-center justify-center lg:gap-2 px-3 lg:px-4 py-2.5 lg:py-3 rounded-xl font-bold transition-all ${
                   activeTab === 'mahr' 
                     ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
+                title="Mahr"
               >
                 <Heart className="w-5 h-5" />
-                Mahr
+                <span className="hidden lg:inline">Mahr</span>
               </button>
               <button
                 onClick={() => setActiveTab('contract')}
-                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
+                className={`flex items-center justify-center lg:gap-2 px-3 lg:px-4 py-2.5 lg:py-3 rounded-xl font-bold transition-all ${
                   activeTab === 'contract' 
                     ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
+                title="Certificate"
               >
                 <Scroll className="w-5 h-5" />
-                Certificate
+                <span className="hidden lg:inline">Certificate</span>
               </button>
               <button
                 onClick={() => setActiveTab('timeline')}
-                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
+                className={`flex items-center justify-center lg:gap-2 px-3 lg:px-4 py-2.5 lg:py-3 rounded-xl font-bold transition-all ${
                   activeTab === 'timeline' 
                     ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
+                title="Timeline"
               >
                 <Clock className="w-5 h-5" />
-                Timeline
+                <span className="hidden lg:inline">Timeline</span>
               </button>
               <button
                 onClick={() => setActiveTab('duas')}
-                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
+                className={`flex items-center justify-center lg:gap-2 px-3 lg:px-4 py-2.5 lg:py-3 rounded-xl font-bold transition-all ${
                   activeTab === 'duas' 
                     ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
+                title="Duas"
               >
                 <BookOpen className="w-5 h-5" />
-                Duas
+                <span className="hidden lg:inline">Duas</span>
               </button>
               <button
                 onClick={() => setActiveTab('guests')}
-                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all ${
+                className={`flex items-center justify-center lg:gap-2 px-3 lg:px-4 py-2.5 lg:py-3 rounded-xl font-bold transition-all ${
                   activeTab === 'guests' 
                     ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
+                title="Guests"
               >
                 <Users className="w-5 h-5" />
-                Guests
+                <span className="hidden lg:inline">Guests</span>
               </button>
             </div>
             
@@ -112,7 +118,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content Area */}
-      <main className="pb-24">
+      <main className="pb-0">
         {activeTab === 'budget' && <BudgetPlanner onNavigateToMahr={() => setActiveTab('mahr')} />}
         {activeTab === 'mahr' && <MahrCalculator />}
         {activeTab === 'contract' && <ContractBuilder />}
@@ -182,7 +188,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Footer */}
-      <footer className="max-w-6xl mx-auto px-4 py-12 border-t border-slate-200 dark:border-slate-700 text-center">
+      <footer className="max-w-6xl mx-auto px-4 pb-12 pt-4 border-t border-slate-200 dark:border-slate-700 text-center">
         <div className="flex flex-col items-center">
           <Sparkles className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-4" />
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium max-w-md leading-relaxed">

@@ -700,7 +700,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                       )}
                       {/* Payer indicator (read-only) - visible in collapsed state (not for Mahr) */}
                       {!isExpanded && percentage > 0 && !isMahr && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold flex items-center gap-0.5 ${
+                        <span className={`text-[11px] px-1.5 py-0.5 rounded font-semibold flex items-center gap-0.5 ${
                           payer === 'groom' 
                             ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300' 
                             : payer === 'bride'
@@ -815,104 +815,121 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         {/* EXPANDED CONTENT */}
         {isExpanded && (
           <div className="px-3 pb-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
-            {/* Payer Selection */}
-            <div className="relative">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Who pays?</p>
-              {/* Mobile: Single tappable badge */}
-              <button
-                onClick={() => {
-                  cyclePayer(cat.key);
-                  if (showPayerTip) dismissPayerTip();
-                }}
-                className={`md:hidden flex items-center gap-0.5 ${getPayerStyles(payer, true)}`}
-              >
-                {getPayerLabel(payer)}
-                <ChevronDown className="w-3 h-3 opacity-70" />
-              </button>
-              
-              {/* Tooltip */}
-              {showTooltip && (
-                <div className="md:hidden absolute left-0 top-full mt-2 z-50">
-                  <div className="bg-white text-slate-800 text-xs font-semibold px-3 py-2.5 rounded-xl shadow-xl border border-slate-200 max-w-[200px]">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">👆</span>
-                      <span>Tap to change who pays</span>
+            {/* Combined Row: Who pays? + Budget Allocation */}
+            <div className="flex md:flex-wrap items-start justify-between md:justify-start gap-3 md:gap-4">
+              {/* Who pays? - Left side */}
+              <div className="relative flex-shrink-0">
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Who pays?</p>
+                {/* Mobile: Single tappable badge - taller to match +/- buttons */}
+                <button
+                  onClick={() => {
+                    cyclePayer(cat.key);
+                    if (showPayerTip) dismissPayerTip();
+                  }}
+                  className={`md:hidden flex items-center gap-0.5 px-4 py-2 text-xs font-bold rounded-lg ${
+                    payer === 'groom' 
+                      ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300' 
+                      : payer === 'bride'
+                        ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'
+                        : 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300'
+                  }`}
+                >
+                  {getPayerLabel(payer)}
+                  <ChevronDown className="w-3 h-3 opacity-70" />
+                </button>
+                
+                {/* Tooltip */}
+                {showTooltip && (
+                  <div className="md:hidden absolute left-0 top-full mt-2 z-50">
+                    <div className="bg-white text-slate-800 text-xs font-semibold px-3 py-2.5 rounded-xl shadow-xl border border-slate-200 max-w-[200px]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">👆</span>
+                        <span>Tap to change who pays</span>
+                      </div>
+                      <div className="absolute -top-2 left-5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" />
                     </div>
-                    <div className="absolute -top-2 left-5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" />
                   </div>
+                )}
+                
+                {/* Desktop: All three badges - wraps if needed */}
+                <div className="hidden md:flex flex-wrap gap-1">
+                  {(['joint', 'groom', 'bride'] as Payer[]).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => handlePayerChange(cat.key, p)}
+                      className={`px-2.5 py-2 text-xs font-bold rounded-lg cursor-pointer hover:opacity-80 transition-opacity ${
+                        payer === p
+                          ? p === 'groom' 
+                            ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300' 
+                            : p === 'bride'
+                              ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'
+                              : 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300'
+                          : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      {getPayerLabel(p)}
+                    </button>
+                  ))}
                 </div>
-              )}
-              
-              {/* Desktop: All three badges */}
-              <div className="hidden md:flex gap-1">
-                {(['joint', 'groom', 'bride'] as Payer[]).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => handlePayerChange(cat.key, p)}
-                    className={`${getPayerStyles(p, payer === p)} cursor-pointer hover:opacity-80`}
-                  >
-                    {getPayerLabel(p)}
-                  </button>
-                ))}
               </div>
-            </div>
-            
-            {/* Percentage Controls */}
-            <div>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Budget Allocation</p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 md:gap-1">
+              
+              {/* Budget Allocation - Right side (natural size on mobile, grows on desktop) */}
+              <div className="md:flex-1 md:min-w-[230px]">
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Budget Allocation</p>
+                <div className="flex items-center gap-1.5">
+                  {/* Percentage controls - 32x32 on both mobile and desktop */}
                   <button
                     onClick={() => handlePercentageChange(cat.key, Math.floor(percentage) - 1)}
-                    className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 active:bg-slate-400 text-slate-600 dark:text-slate-200 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
+                    className="w-8 h-8 flex items-center justify-center bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 active:bg-slate-400 text-slate-600 dark:text-slate-200 rounded-md text-sm font-bold transition-colors disabled:opacity-40 flex-shrink-0"
                     disabled={percentage <= 0}
                   >
                     −
                   </button>
-                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 w-14 md:w-12 text-center">
+                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 w-10 text-center flex-shrink-0">
                     {Number.isInteger(percentage) ? percentage : percentage.toFixed(1)}%
                   </span>
                   <button
                     onClick={() => handlePercentageChange(cat.key, Math.floor(percentage) + 1)}
-                    className="w-10 h-10 md:w-7 md:h-7 flex items-center justify-center bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 active:bg-slate-400 text-slate-600 dark:text-slate-200 rounded-lg md:rounded-md text-lg md:text-sm font-bold transition-colors disabled:opacity-40"
+                    className="w-8 h-8 flex items-center justify-center bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 active:bg-slate-400 text-slate-600 dark:text-slate-200 rounded-md text-sm font-bold transition-colors disabled:opacity-40 flex-shrink-0"
                     disabled={percentage >= 100}
                   >
                     +
                   </button>
+                  {/* Amount input - grows to fill, shrinks as needed */}
+                  <div className="relative flex-1 min-w-0">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={isEditing ? editingValue : amount.toLocaleString()}
+                      onFocus={() => {
+                        setEditingCategory(cat.key);
+                        setEditingValue(amount.toString());
+                      }}
+                      onChange={(e) => {
+                        const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                        setEditingValue(rawValue);
+                      }}
+                      onBlur={() => {
+                        const newAmount = parseInt(editingValue) || 0;
+                        handleAmountChange(cat.key, newAmount);
+                        setEditingCategory(null);
+                        setEditingValue('');
+                      }}
+                      className="w-full pl-5 pr-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-right font-semibold text-slate-700 dark:text-white text-sm focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
                 </div>
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={isEditing ? editingValue : amount.toLocaleString()}
-                    onFocus={() => {
-                      setEditingCategory(cat.key);
-                      setEditingValue(amount.toString());
-                    }}
-                    onChange={(e) => {
-                      const rawValue = e.target.value.replace(/[^0-9]/g, '');
-                      setEditingValue(rawValue);
-                    }}
-                    onBlur={() => {
-                      const newAmount = parseInt(editingValue) || 0;
-                      handleAmountChange(cat.key, newAmount);
-                      setEditingCategory(null);
-                      setEditingValue('');
-                    }}
-                    className="w-28 pl-6 pr-2 py-1.5 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-right font-semibold text-slate-700 dark:text-white text-sm focus:outline-none focus:border-emerald-400"
-                  />
-                </div>
+                {/* Slider - under budget allocation */}
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={percentage}
+                  onChange={(e) => handlePercentageChange(cat.key, parseInt(e.target.value))}
+                  className="w-full h-1.5 mt-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                />
               </div>
-              {/* Slider */}
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={percentage}
-                onChange={(e) => handlePercentageChange(cat.key, parseInt(e.target.value))}
-                className="w-full h-2 mt-3 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-              />
             </div>
             
             {/* Payment Tracking Section - Collapsible */}
@@ -934,7 +951,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                   {/* Collapsible Header */}
                   <button
                     onClick={togglePaymentTracking}
-                    className="w-full flex items-center justify-between text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 dark:hover:text-emerald-300 cursor-pointer transition-colors"
+                    className="w-full flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white cursor-pointer transition-colors"
                   >
                     <span className="flex items-center gap-1">
                       Payment Details
@@ -944,103 +961,137 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                         </span>
                       )}
                     </span>
-                    <ChevronDown className={`w-4 h-4 transition-transform ${isPaymentExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isPaymentExpanded ? 'rotate-180' : ''}`} />
                   </button>
                   
                   {/* Collapsible Content */}
                   {isPaymentExpanded && (
                     <div className="mt-3 space-y-3">
-                      {/* Total Bill (renamed from Actual Cost) */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Total Bill / Quoted Price</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
+                      {/* Row 1: Total Bill + Amount Paid */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* Total Bill */}
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Total Bill</label>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px]">{selectedCurrency.symbol}</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={totalBill || ''}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9]/g, '');
+                                handleActualCostChange(cat.key, parseInt(val) || 0);
+                              }}
+                              placeholder={amount.toString()}
+                              className={`w-full pl-6 pr-2 py-1.5 bg-white dark:bg-slate-700 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
+                                isOverBudget ? 'border-red-300 dark:border-red-500' : 'border-slate-200 dark:border-slate-600'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                        {/* Amount Paid */}
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Amount Paid</label>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px]">{selectedCurrency.symbol}</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={amountPaid || ''}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9]/g, '');
+                                handleAmountPaidChange(cat.key, parseInt(val) || 0);
+                              }}
+                              placeholder="0"
+                              className={`w-full pl-6 pr-2 py-1.5 bg-white dark:bg-slate-700 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
+                                isOverPaid ? 'border-orange-300 dark:border-orange-500' : 'border-slate-200 dark:border-slate-600'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Warnings - inline */}
+                      {(isOverBudget || isOverPaid) && (
+                        <div className="text-[11px] font-medium">
+                          {isOverBudget && (
+                            <p className="text-red-600 dark:text-red-400">
+                              ⚠️ {selectedCurrency.symbol}{overBudgetAmount.toLocaleString()} over budget
+                            </p>
+                          )}
+                          {isOverPaid && (
+                            <p className="text-orange-600 dark:text-orange-400">
+                              ⚠️ Overpaid by {selectedCurrency.symbol}{overPaidAmount.toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Row 2: Vendor + Notes */}
+                      <div className="grid grid-cols-2 gap-2 items-start">
+                        {/* Vendor */}
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Vendor</label>
                           <input
                             type="text"
-                            inputMode="numeric"
-                            value={totalBill || ''}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/[^0-9]/g, '');
-                              handleActualCostChange(cat.key, parseInt(val) || 0);
-                            }}
-                            placeholder={amount.toString()}
-                            className={`w-full pl-10 pr-2 py-2 bg-white dark:bg-slate-600 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
-                              isOverBudget ? 'border-red-300 dark:border-red-500' : 'border-slate-200 dark:border-slate-500'
-                            }`}
+                            value={data.vendor || ''}
+                            onChange={(e) => updateExpenseField(cat.key, 'vendor', e.target.value)}
+                            placeholder="Vendor name..."
+                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
                           />
                         </div>
-                        {/* Over Budget Warning */}
-                        {isOverBudget && (
-                          <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
-                            ⚠️ {selectedCurrency.symbol}{overBudgetAmount.toLocaleString()} over allocated budget
-                          </p>
-                        )}
-                      </div>
-                      
-                      {/* Amount Paid */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Amount Paid</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={amountPaid || ''}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/[^0-9]/g, '');
-                              handleAmountPaidChange(cat.key, parseInt(val) || 0);
+                        {/* Notes - Auto-expanding textarea */}
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Notes</label>
+                          <textarea
+                            ref={(el) => {
+                              if (!el) return;
+                              
+                              // Set correct height
+                              const adjustHeight = () => {
+                                el.style.height = 'auto';
+                                el.style.height = Math.max(34, el.scrollHeight) + 'px';
+                              };
+                              adjustHeight();
+                              
+                              // Add ResizeObserver if not already attached
+                              if (!el.dataset.hasObserver) {
+                                el.dataset.hasObserver = 'true';
+                                const observer = new ResizeObserver(() => {
+                                  // Only adjust if width changed (not height changes we caused)
+                                  adjustHeight();
+                                });
+                                observer.observe(el.parentElement!);
+                              }
                             }}
-                            placeholder="0"
-                            className={`w-full pl-10 pr-2 py-2 bg-white dark:bg-slate-600 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
-                              isOverPaid ? 'border-orange-300 dark:border-orange-500' : 'border-slate-200 dark:border-slate-500'
-                            }`}
+                            value={data.notes || ''}
+                            onChange={(e) => {
+                              updateExpenseField(cat.key, 'notes', e.target.value);
+                              // Auto-resize
+                              e.target.style.height = 'auto';
+                              e.target.style.height = e.target.scrollHeight + 'px';
+                            }}
+                            placeholder="Any notes..."
+                            rows={1}
+                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 resize-none overflow-hidden"
+                            style={{ minHeight: '34px' }}
                           />
                         </div>
-                        {/* Over Paid Warning */}
-                        {isOverPaid && (
-                          <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">
-                            ⚠️ Payment exceeds bill by {selectedCurrency.symbol}{overPaidAmount.toLocaleString()}
-                          </p>
-                        )}
                       </div>
                       
-                      {/* Vendor Name */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Vendor/Supplier</label>
-                        <input
-                          type="text"
-                          value={data.vendor || ''}
-                          onChange={(e) => updateExpenseField(cat.key, 'vendor', e.target.value)}
-                          placeholder="Enter vendor name..."
-                          className="w-full px-3 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
-                        />
-                      </div>
-                      
-                      {/* Notes */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notes</label>
-                        <input
-                          type="text"
-                          value={data.notes || ''}
-                          onChange={(e) => updateExpenseField(cat.key, 'notes', e.target.value)}
-                          placeholder="Any notes..."
-                          className="w-full px-3 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
-                        />
-                      </div>
-                      
-                      {/* Payment Status Summary */}
+                      {/* Payment Status Summary - compact */}
                       {totalBill > 0 && (
-                        <div className="text-xs text-center pt-2 border-t border-slate-200 dark:border-slate-600">
+                        <div className="text-[11px] text-center pt-1.5 border-t border-slate-200 dark:border-slate-600">
                           {pendingAmount > 0 ? (
                             <span className="text-amber-600 dark:text-amber-400 font-medium">
-                              {selectedCurrency.symbol}{pendingAmount.toLocaleString()} remaining to pay
+                              {selectedCurrency.symbol}{pendingAmount.toLocaleString()} remaining
                             </span>
                           ) : isOverPaid ? (
                             <span className="text-orange-600 dark:text-orange-400 font-medium">
-                              ⚠️ Overpaid by {selectedCurrency.symbol}{overPaidAmount.toLocaleString()}
+                              ⚠️ Overpaid
                             </span>
                           ) : (
-                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">✓ Fully paid!</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">✓ Paid</span>
                           )}
                         </div>
                       )}
@@ -1119,7 +1170,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm">Mahr (Groom's Obligation)</span>
-                  <span className="text-[10px] bg-cyan-100 dark:bg-cyan-800/50 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded font-bold">
+                  <span className="text-[11px] bg-cyan-100 dark:bg-cyan-800/50 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded font-bold">
                     ☪️ Excluded from Budget
                   </span>
                 </div>
@@ -1144,16 +1195,16 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
           {/* Expanded Content */}
           {isExpanded && (
             <div className="px-3 pb-4 border-t border-cyan-200 dark:border-cyan-700">
-              {/* Info Box */}
-              <div className="bg-cyan-100/50 dark:bg-cyan-800/30 rounded-lg p-3 my-3 text-[13px] text-cyan-800 dark:text-cyan-200">
-                <p>Mahr is a religious obligation from groom to bride - not a wedding expense. It's tracked separately from your wedding budget.</p>
-              </div>
+              {/* Info Text */}
+              <p className="my-3 text-[13px] italic text-slate-400 dark:text-slate-400">
+                Mahr is a religious obligation from groom to bride — not a wedding expense. It's tracked separately from your wedding budget.
+              </p>
 
               {/* Smart Select Chips - Sunnah Guidelines */}
               <div className="mb-5">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Sunnah Guidelines
+                    Select a Guideline:
                   </p>
                   <button
                     onClick={(e) => { e.stopPropagation(); fetchSilverPrice(); }}
@@ -1201,10 +1252,14 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                               : `border-purple-400 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 ${isSelected ? 'ring-purple-500' : ''}`
                         }`}
                       >
-                        {/* Selected indicator */}
-                        {isSelected && (
-                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center text-white text-[10px]">✓</span>
-                        )}
+                        {/* Selection indicator - Plus when unselected, Check when selected */}
+                        <span className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${
+                          isSelected 
+                            ? 'bg-emerald-500 text-white' 
+                            : 'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-300'
+                        }`}>
+                          {isSelected ? '✓' : '+'}
+                        </span>
                         <p className={`text-[10px] font-bold uppercase tracking-wide ${
                           mahr.id === 'minimum' ? 'text-cyan-700 dark:text-cyan-300' 
                             : mahr.id === 'azwaj' ? 'text-emerald-700 dark:text-emerald-300' 
@@ -1247,13 +1302,12 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                   </div>
                 )}
                 
-                {/* Link to Mahr page - styled as a button */}
+                {/* Link to Mahr page */}
                 <button
                   onClick={(e) => { e.stopPropagation(); onNavigateToMahr?.(); }}
-                  className="w-full mt-3 py-2 px-3 text-sm font-medium text-cyan-700 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-900/40 hover:bg-cyan-200 dark:hover:bg-cyan-900/60 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  className="mt-3 text-sm font-medium text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 hover:underline transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>📖</span> View full history & sources in Mahr Calculator
-                  <span className="text-cyan-500">→</span>
+                  View full history & sources in Mahr Calculator <span>→</span>
                 </button>
               </div>
 
@@ -1284,7 +1338,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                         setSelectedMahrPreset(null);
                         setSelectedMahrCurrency(null);
                       }}
-                      placeholder="Enter Mahr amount"
+                      placeholder="Enter custom Mahr amount"
                       className="w-full pl-8 pr-3 py-2.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                     />
                   </div>
@@ -1446,7 +1500,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-      <div className="text-center mb-10 relative">
+      <div className="text-center mb-6 relative">
         <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">Wedding Budget Architect</h2>
         <p className="text-slate-600 dark:text-slate-400 italic">"The most blessed wedding is the one with the least expenses."</p>
         
@@ -1734,7 +1788,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         </div>
         {/* Guidance text - only show if Mahr is set */}
         {mahrActualCost > 0 && (
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-3 italic text-center">
+          <p className="text-[12px] text-slate-400 dark:text-slate-400 mt-3 italic text-center">
             Mahr is tracked separately as a religious obligation, not a wedding expense.
           </p>
         )}
