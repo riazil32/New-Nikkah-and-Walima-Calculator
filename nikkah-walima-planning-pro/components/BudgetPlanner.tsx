@@ -1697,11 +1697,19 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
           💰 Financial Summary
         </h3>
         <div className="space-y-2">
-          <div className="flex justify-between items-center text-sm">
+          <div className="flex justify-between items-start text-sm">
             <span className="text-slate-500 dark:text-slate-400">Wedding Expenses</span>
-            <span className="font-medium text-slate-600 dark:text-slate-300">
-              {selectedCurrency.symbol}{Math.round(totalAllocated).toLocaleString()}
-            </span>
+            <div className="text-right">
+              <span className="font-medium text-slate-600 dark:text-slate-300">
+                {selectedCurrency.symbol}{Math.round(totalAllocated).toLocaleString()}
+              </span>
+              {/* Cost Per Guest - based on wedding expenses only, not Mahr */}
+              {guests > 0 && totalAllocated > 0 && (
+                <p className="text-[11.5px] py-0.5 text-slate-400 dark:text-slate-500">
+                  ~{selectedCurrency.symbol}{Math.round(totalAllocated / guests).toLocaleString()}/guest
+                </p>
+              )}
+            </div>
           </div>
           {/* Mahr row - only show if Mahr is set */}
           {mahrActualCost > 0 && (
@@ -1722,12 +1730,6 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 {selectedCurrency.symbol}{grandTotalRequired.toLocaleString()}
               </span>
             </div>
-            {/* Cost Per Head */}
-            {guests > 0 && (
-              <p className="text-[13px] text-slate-400 mt-1 text-right">
-                ~{selectedCurrency.symbol}{Math.round(grandTotalRequired / guests).toLocaleString()} per guest
-              </p>
-            )}
           </div>
         </div>
         {/* Guidance text - only show if Mahr is set */}
