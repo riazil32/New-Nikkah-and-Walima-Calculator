@@ -1,5 +1,10 @@
 import type { Context } from "@netlify/functions";
-import { GoogleGenAI } from "@google/genai";
+
+// GoldAPI.io - Reliable metal prices API
+// Free tier: 300 requests/month
+// XAG = Silver (ISO 4217 code)
+
+const TROY_OZ_TO_GRAMS = 31.1035;
 
 export default async (req: Request, context: Context) => {
   // Only allow GET requests
@@ -10,9 +15,9 @@ export default async (req: Request, context: Context) => {
     });
   }
 
-  const apiKey = Netlify.env.get("GEMINI_API_KEY");
+  const apiKey = Netlify.env.get("GOLDAPI_KEY");
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: "API key not configured" }), {
+    return new Response(JSON.stringify({ error: "GOLDAPI_KEY not configured" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
@@ -21,48 +26,44 @@ export default async (req: Request, context: Context) => {
   // Get currency from query params, default to GBP
   const url = new URL(req.url);
   const currency = url.searchParams.get("currency") || "GBP";
-  const currencyNames: Record<string, string> = {
-    GBP: "British Pounds",
-    USD: "US Dollars",
-    EUR: "Euros",
-    AED: "UAE Dirhams",
-    PKR: "Pakistani Rupees",
-    INR: "Indian Rupees",
-    SAR: "Saudi Riyals",
-    MYR: "Malaysian Ringgit",
-    CAD: "Canadian Dollars",
-    AUD: "Australian Dollars",
-  };
-
-  const currencyName = currencyNames[currency] || currency;
+  
+  // Supported currencies by GoldAPI
+  const supportedCurrencies = ["USD", "GBP", "EUR", "AUD", "CAD", "CHF", "JPY", "INR", "SGD", "AED", "SAR", "MYR", "PKR"];
+  const targetCurrency = supportedCurrencies.includes(currency) ? currency : "GBP";
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: `What is the current market price of silver per gram in ${currencyName} (${currency})? Please provide just the numeric value in your response text, and the sources in grounding metadata.`,
-      config: {
-        tools: [{ googleSearch: {} }],
+    // Fetch silver price from GoldAPI.io
+    // XAG = Silver in ISO 4217
+    const response = await fetch(`https://www.goldapi.io/api/XAG/${targetCurrency}`, {
+      headers: {
+        "x-access-token": apiKey,
+        "Content-Type": "application/json",
       },
     });
 
-    const text = response.text || "";
-    const match = text.match(/(\d+(?:[.,]\d+)?)/);
-    const price = match ? parseFloat(match[1].replace(",", ".")) : null;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("GoldAPI error:", response.status, errorText);
+      return new Response(
+        JSON.stringify({ error: `GoldAPI error: ${response.status}` }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
-    // Extract sources from grounding metadata
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    const sources = chunks
-      ? chunks
-          .filter((c: any) => c.web)
-          .map((c: any) => ({ title: c.web.title, uri: c.web.uri }))
-      : [];
+    const data = await response.json();
+    
+    // GoldAPI returns price per troy ounce
+    // Convert to price per gram: price / 31.1035
+    const pricePerOz = data.price;
+    const pricePerGram = pricePerOz ? pricePerOz / TROY_OZ_TO_GRAMS : null;
 
     return new Response(
       JSON.stringify({
-        price,
-        currency,
-        sources,
+        price: pricePerGram ? Math.round(pricePerGram * 100) / 100 : null, // Round to 2 decimal places
+        pricePerOz: pricePerOz,
+        currency: targetCurrency,
+        metal: "Silver (XAG)",
+        source: "GoldAPI.io",
         timestamp: new Date().toISOString(),
       }),
       {
@@ -72,9 +73,9 @@ export default async (req: Request, context: Context) => {
     );
   } catch (error) {
     console.error("Silver price fetch error:", error);
-    return new Response(JSON.stringify({ error: "Failed to fetch silver price" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: "Failed to fetch silver price from GoldAPI" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 };

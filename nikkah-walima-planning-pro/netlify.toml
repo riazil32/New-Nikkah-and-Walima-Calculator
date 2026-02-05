@@ -3,6 +3,11 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[dev]
+  targetPort = 3000  # Vite runs on port 3000
+  port = 8888        # Netlify dev will run on 8888
+  autoLaunch = false
+
 [functions]
   node_bundler = "esbuild"
 
