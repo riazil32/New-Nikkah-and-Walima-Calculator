@@ -161,7 +161,7 @@ export const MahrCalculator: React.FC = () => {
   }> = {
     'minimum': { 
       borderColor: 'border-cyan-500/60 dark:border-cyan-400/40',
-      glowShadow: 'shadow-cyan-500/10 dark:shadow-cyan-400/5',
+      glowShadow: 'shadow-cyan-500/10 dark:shadow-cyan-400/5 hover:shadow-cyan-500/20 dark:hover:shadow-cyan-400/20',
       titleColor: 'text-cyan-600 dark:text-cyan-400',
       subtitleColor: 'text-cyan-500/60 dark:text-cyan-400/50',
       descBg: 'bg-cyan-50 dark:bg-cyan-900/20',
@@ -171,7 +171,7 @@ export const MahrCalculator: React.FC = () => {
     },
     'azwaj': { 
       borderColor: 'border-emerald-500/60 dark:border-emerald-400/40',
-      glowShadow: 'shadow-emerald-500/10 dark:shadow-emerald-400/5',
+      glowShadow: 'shadow-emerald-500/10 dark:shadow-emerald-400/5 hover:shadow-emerald-500/20 dark:hover:shadow-emerald-400/20',
       titleColor: 'text-emerald-600 dark:text-emerald-400',
       subtitleColor: 'text-emerald-500/60 dark:text-emerald-400/50',
       descBg: 'bg-emerald-50 dark:bg-emerald-900/20',
@@ -181,7 +181,7 @@ export const MahrCalculator: React.FC = () => {
     },
     'fatimi': { 
       borderColor: 'border-purple-500/60 dark:border-purple-400/40',
-      glowShadow: 'shadow-purple-500/10 dark:shadow-purple-400/5',
+      glowShadow: 'shadow-purple-500/10 dark:shadow-purple-400/5 hover:shadow-purple-500/20 dark:hover:shadow-purple-400/20',
       titleColor: 'text-purple-600 dark:text-purple-400',
       subtitleColor: 'text-purple-500/60 dark:text-purple-400/50',
       descBg: 'bg-purple-50 dark:bg-purple-900/20',
@@ -314,7 +314,7 @@ export const MahrCalculator: React.FC = () => {
           return (
             <div 
               key={mahr.id} 
-              className={`relative rounded-xl overflow-hidden border-2 ${colors.borderColor} bg-white dark:bg-slate-800/50 shadow-lg ${colors.glowShadow} transition-all hover:shadow-xl`}
+              className={`relative rounded-xl overflow-hidden border-2 ${colors.borderColor} bg-white dark:bg-slate-800/50 shadow-lg ${colors.glowShadow} transition-all hover:shadow-xl hover:-translate-y-0.5`}
             >
               {/* Card header */}
               <div className="p-4 pb-3">
