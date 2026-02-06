@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Info, Sparkles, X, ChevronRight, Scroll } from './Icons';
+import { Info, Sparkles, X, ChevronRight, Scroll, ChevronDown } from './Icons';
 import { MAHR_TYPES, SILVER_NISAB_DIVISOR, CURRENCIES } from '../constants';
 import { MahrType } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -23,29 +23,48 @@ export const MahrCalculator: React.FC = () => {
   );
   
   // Session-only state
-  const [selectedMahrInfo, setSelectedMahrInfo] = useState<MahrType | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [sources, setSources] = useState<{title: string, uri: string}[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [showContractCTA, setShowContractCTA] = useState(false);
+  const [priceChange, setPriceChange] = useState<{ direction: 'up' | 'down' | 'same'; oldPrice: number; newPrice: number } | null>(null);
+  // Responsive defaults: expanded on desktop (md+), collapsed on mobile
+  const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
+  const [showPrinciples, setShowPrinciples] = useState(isDesktop);
+  // Independent expand state per card
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
+    'minimum': isDesktop, 'azwaj': isDesktop, 'fatimi': isDesktop
+  });
+
+  const toggleCard = (id: string) => {
+    setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const fetchLivePrice = async () => {
     setIsFetching(true);
     setSources([]);
     setFetchError(null);
+    setPriceChange(null);
+    const oldPrice = silverPricePerGram;
     try {
       const response = await fetch(`/api/silver-price?currency=${selectedCurrency.code}`);
       const data = await response.json();
       
       if (data.error) {
-        setFetchError(data.error);
+        setFetchError(`${data.error}. Showing most recent cached data.`);
         return;
       }
       
       if (data.price) {
-        setSilverPricePerGram(data.price);
+        const newPrice = data.price;
+        setSilverPricePerGram(newPrice);
         setLastUpdated(new Date().toLocaleTimeString());
+        
+        // Track price change
+        if (oldPrice > 0) {
+          const direction = newPrice > oldPrice ? 'up' : newPrice < oldPrice ? 'down' : 'same';
+          setPriceChange({ direction, oldPrice, newPrice });
+        }
       }
       
       if (data.sources) {
@@ -53,7 +72,7 @@ export const MahrCalculator: React.FC = () => {
       }
     } catch (error) {
       console.error("Error fetching silver price:", error);
-      setFetchError("Failed to fetch price. Please try again.");
+      setFetchError("Failed to fetch live price. Showing most recent cached data.");
     } finally {
       setIsFetching(false);
     }
@@ -61,68 +80,86 @@ export const MahrCalculator: React.FC = () => {
 
   const handleCurrencyChange = (code: string) => {
     setCurrencyCode(code);
-    setLastUpdated(null); // Clear last updated when currency changes
+    setLastUpdated(null);
     setSources([]);
   };
 
-  const handleNisabChange = (val: string) => {
-    const nisab = parseFloat(val);
-    if (nisab > 0) {
-      setSilverPricePerGram(nisab / SILVER_NISAB_DIVISOR);
-      setLastUpdated(null);
+  // Color configs for each mahr type - glass/outline style
+  const colorConfig: Record<string, { 
+    borderColor: string; glowShadow: string;
+    titleColor: string; subtitleColor: string;
+    descBg: string; descText: string; descBorder: string;
+    accentColor: string;
+  }> = {
+    'minimum': { 
+      borderColor: 'border-cyan-500/60 dark:border-cyan-400/40',
+      glowShadow: 'shadow-cyan-500/10 dark:shadow-cyan-400/5',
+      titleColor: 'text-cyan-600 dark:text-cyan-400',
+      subtitleColor: 'text-cyan-500/60 dark:text-cyan-400/50',
+      descBg: 'bg-cyan-50 dark:bg-cyan-900/20',
+      descText: 'text-cyan-800 dark:text-cyan-200',
+      descBorder: 'border-cyan-200 dark:border-cyan-800/50',
+      accentColor: 'text-cyan-600 dark:text-cyan-400',
+    },
+    'azwaj': { 
+      borderColor: 'border-emerald-500/60 dark:border-emerald-400/40',
+      glowShadow: 'shadow-emerald-500/10 dark:shadow-emerald-400/5',
+      titleColor: 'text-emerald-600 dark:text-emerald-400',
+      subtitleColor: 'text-emerald-500/60 dark:text-emerald-400/50',
+      descBg: 'bg-emerald-50 dark:bg-emerald-900/20',
+      descText: 'text-emerald-800 dark:text-emerald-200',
+      descBorder: 'border-emerald-200 dark:border-emerald-800/50',
+      accentColor: 'text-emerald-600 dark:text-emerald-400',
+    },
+    'fatimi': { 
+      borderColor: 'border-purple-500/60 dark:border-purple-400/40',
+      glowShadow: 'shadow-purple-500/10 dark:shadow-purple-400/5',
+      titleColor: 'text-purple-600 dark:text-purple-400',
+      subtitleColor: 'text-purple-500/60 dark:text-purple-400/50',
+      descBg: 'bg-purple-50 dark:bg-purple-900/20',
+      descText: 'text-purple-800 dark:text-purple-200',
+      descBorder: 'border-purple-200 dark:border-purple-800/50',
+      accentColor: 'text-purple-600 dark:text-purple-400',
     }
   };
 
-  const handleUseForContract = (mahr: MahrType) => {
-    const value = (mahr.grams * silverPricePerGram).toFixed(2);
-    const formattedValue = `${selectedCurrency.symbol}${parseFloat(value).toLocaleString()}`;
-    // Save to a temporary key that ContractBuilder can read
-    localStorage.setItem('mahr-selectedForContract', formattedValue);
-    setSelectedMahrInfo(null);
-    setShowContractCTA(true);
-    // Auto-hide after 5 seconds
-    setTimeout(() => setShowContractCTA(false), 5000);
-  };
-
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="text-center mb-10">
+    <div className="max-w-5xl mx-auto px-4 py-8">
+      {/* Header - matching Budget page style */}
+      <div className="text-center mb-6">
         <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">Authentic Mahr Calculator</h2>
-        <p className="text-slate-600 dark:text-slate-400">Determining mahr based on contemporary silver market valuations</p>
+        <p className="text-slate-600 dark:text-slate-400 italic">Silver-based mahr valuations using live market rates</p>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-6 md:p-8 mb-10 border border-slate-100 dark:border-slate-700">
-        <div className="flex items-start gap-4 p-5 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 rounded-2xl mb-8">
-          <Info className="w-6 h-6 text-blue-600 dark:text-blue-400 shrink-0 mt-1" />
-          <div className="text-sm">
-            <h4 className="font-bold text-blue-900 dark:text-blue-200 mb-1">Market Valuation Help</h4>
-            <p className="text-blue-800 dark:text-blue-300 leading-relaxed">
-              Islamic Mahr traditions are historically tied to the weight of Silver Dirhams. 
-              Click the "Update Live" button to fetch current market rates via Google Search.
-            </p>
-          </div>
-        </div>
+      {/* Controls Card */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4 md:p-6 mb-6 border border-slate-200 dark:border-slate-700">
+        {/* Info text - subtle */}
+        <p className="text-sm italic text-center text-slate-400 dark:text-slate-500 mb-4">
+          Islamic Mahr traditions are historically tied to the weight of Silver Dirhams. Fetch live rates to get accurate valuations.
+        </p>
 
-        <div className="grid md:grid-cols-3 gap-6 items-end">
-          <div className="space-y-4">
-            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Currency</label>
+        {/* Currency + Price + Button */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          {/* Currency */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Currency</label>
             <select
               value={selectedCurrency.code}
               onChange={(e) => handleCurrencyChange(e.target.value)}
-              className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-600 rounded-2xl transition-all outline-none font-bold text-slate-800 dark:text-white"
+              className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-emerald-400 transition-all"
             >
               {CURRENCIES.map(c => (
                 <option key={c.code} value={c.code}>{c.symbol} {c.code} - {c.name}</option>
               ))}
             </select>
           </div>
-          <div className="space-y-4">
-            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 flex justify-between">
-              <span>Price Per Gram ({selectedCurrency.code})</span>
-              {lastUpdated && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase">Updated: {lastUpdated}</span>}
+          {/* Price Per Gram */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+              Price/Gram ({selectedCurrency.code})
             </label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">{selectedCurrency.symbol}</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">{selectedCurrency.symbol}</span>
               <input 
                 type="number" 
                 step="0.0001" 
@@ -131,39 +168,58 @@ export const MahrCalculator: React.FC = () => {
                   setSilverPricePerGram(parseFloat(e.target.value) || 0);
                   setLastUpdated(null);
                 }}
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-600 rounded-2xl transition-all outline-none font-bold text-slate-800 dark:text-white text-xl"
+                className="w-full pl-7 pr-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-emerald-400 transition-all"
               />
             </div>
           </div>
-          <div className="space-y-4">
-            <label className="block text-sm font-bold text-slate-700 opacity-0 hidden md:block">Action</label>
-            <button 
-              onClick={fetchLivePrice}
-              disabled={isFetching}
-              className={`w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] ${
-                isFetching 
-                ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 cursor-not-allowed' 
-                : 'bg-slate-900 dark:bg-emerald-600 text-white hover:bg-slate-800 dark:hover:bg-emerald-500 shadow-slate-200 dark:shadow-emerald-900/30'
-              }`}
-            >
-              <RefreshIcon className={`w-5 h-5 ${isFetching ? 'animate-spin' : ''}`} />
-              {isFetching ? 'Fetching...' : 'Update Live Price'}
-            </button>
-          </div>
+          {/* Update Button */}
+          <button 
+            onClick={fetchLivePrice}
+            disabled={isFetching}
+            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all active:scale-[0.98] border ${
+              isFetching 
+              ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 border-slate-200 dark:border-slate-600 cursor-not-allowed' 
+              : 'bg-transparent text-emerald-700 dark:text-emerald-400 border-emerald-500 dark:border-emerald-500/60 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 dark:hover:bg-emerald-600 dark:hover:text-white dark:hover:border-emerald-600'
+            }`}
+          >
+            <RefreshIcon className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+            {isFetching ? 'Fetching...' : 'Update Prices'}
+          </button>
         </div>
 
-        {fetchError && (
-          <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 rounded-2xl text-red-700 dark:text-red-300 text-sm">
-            {fetchError}
+        {/* Status bar: Updated time + Price change indicator */}
+        {(lastUpdated || fetchError || priceChange) && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            {lastUpdated && (
+              <span className="text-slate-500 dark:text-slate-400">
+                Updated: <span className="font-medium text-slate-600 dark:text-slate-300">{lastUpdated}</span>
+              </span>
+            )}
+            {priceChange && priceChange.direction !== 'same' && (
+              <span className={`font-medium px-2 py-0.5 rounded-full ${
+                priceChange.direction === 'up' 
+                  ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' 
+                  : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
+              }`}>
+                {priceChange.direction === 'up' ? '↑' : '↓'} Silver price {priceChange.direction === 'up' ? 'increased' : 'decreased'} ({selectedCurrency.symbol}{Math.abs(priceChange.newPrice - priceChange.oldPrice).toFixed(4)}/g)
+              </span>
+            )}
+            {priceChange && priceChange.direction === 'same' && (
+              <span className="text-slate-400 dark:text-slate-500">No change in price</span>
+            )}
+            {fetchError && (
+              <span className="text-amber-600 dark:text-amber-400">⚠️ {fetchError}</span>
+            )}
           </div>
         )}
 
+        {/* Sources */}
         {sources.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-top-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Data Sources:</p>
-            <div className="flex flex-wrap gap-2">
+          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Sources:</p>
+            <div className="flex flex-wrap gap-1.5">
               {sources.map((s, idx) => (
-                <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                   {s.title}
                 </a>
               ))}
@@ -172,111 +228,102 @@ export const MahrCalculator: React.FC = () => {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+      {/* Mahr Types - 3-column grid on desktop, stacked on mobile */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {MAHR_TYPES.map(mahr => {
-          const value = (mahr.grams * silverPricePerGram).toFixed(2);
+          const value = mahr.grams * silverPricePerGram;
+          const isExpanded = expandedCards[mahr.id] ?? true;
+          const colors = colorConfig[mahr.id] || colorConfig['minimum'];
+          
           return (
-            <div key={mahr.id} className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700 overflow-hidden group hover:shadow-2xl transition-all">
-              <div className={`bg-gradient-to-br ${mahr.color} p-6 text-white`}>
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-xl font-bold">{mahr.name}</h3>
-                  <Sparkles className="w-5 h-5 opacity-50" />
+            <div 
+              key={mahr.id} 
+              className={`relative rounded-xl overflow-hidden border-2 ${colors.borderColor} bg-white dark:bg-slate-800/50 shadow-lg ${colors.glowShadow} transition-all hover:shadow-xl`}
+            >
+              {/* Card header */}
+              <div className="p-4 pb-3">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <h3 className={`text-base font-bold ${colors.titleColor}`}>{mahr.name}</h3>
+                  {/* Arabic calligraphy - top right */}
+                  <p 
+                    className={`text-3xl font-bold leading-none select-none flex-shrink-0 ${colors.subtitleColor}`}
+                    style={{ fontFamily: 'serif' }}
+                  >
+                    {mahr.arabicName}
+                  </p>
                 </div>
-                <p className="text-xs font-medium opacity-80 uppercase tracking-widest">{mahr.arabicName}</p>
+                
+                {/* Price - hero element */}
+                <p className="text-3xl font-black text-slate-800 dark:text-white mb-0.5">
+                  {selectedCurrency.symbol}{value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {mahr.grams.toFixed(1)}g Silver
+                </p>
               </div>
-              <div className="p-6">
-                <p className="text-3xl font-black text-slate-800 dark:text-white mb-4">{selectedCurrency.symbol}{parseFloat(value).toLocaleString()}</p>
-                <div className={`${mahr.bgColor} dark:bg-opacity-20 ${mahr.textColor} rounded-2xl p-4 text-xs font-semibold mb-6 min-h-[80px]`}>
+
+              {/* Divider */}
+              <div className="mx-4 border-t border-slate-100 dark:border-slate-700" />
+
+              {/* Card body */}
+              <div className="relative z-10 p-4 pt-3">
+                {/* Description - always visible, min-height for alignment on desktop */}
+                <p className={`text-xs leading-relaxed p-2.5 rounded-lg border md:min-h-[60px] ${colors.descBg} ${colors.descText} ${colors.descBorder} mb-3`}>
                   {mahr.description}
-                  <div className="mt-2 text-[10px] opacity-70">Weight: {mahr.grams}g Silver</div>
-                </div>
-                <button 
-                  onClick={() => setSelectedMahrInfo(mahr)}
-                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-slate-100 dark:border-slate-600 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                </p>
+
+                {/* Expand for scholarly details */}
+                <button
+                  onClick={() => toggleCard(mahr.id)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                 >
-                  View Details <ChevronRight className="w-4 h-4" />
+                  {isExpanded ? 'Hide' : 'View'} Details
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
+
+                {/* Expanded details */}
+                {isExpanded && (
+                  <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700 animate-in slide-in-from-top-2 duration-200">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      {mahr.details}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           );
         })}
       </div>
 
-      <div className="bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] p-8 md:p-12 text-white relative overflow-hidden border dark:border-slate-700">
-        <div className="relative z-10 max-w-2xl">
-          <h3 className="text-2xl font-serif font-bold mb-6">Mahr Principles in Islam</h3>
-          <div className="space-y-6 text-slate-300 text-sm leading-relaxed">
-            <p>
-              <strong className="text-emerald-400">Essential Obligation:</strong> Mahr is a mandatory gift from the groom to the bride. It is her exclusive property and symbolizes the groom's responsibility to provide and protect.
-            </p>
-            <p>
-              <strong className="text-emerald-400">Flexibility:</strong> There is no maximum cap on Mahr. While the Sunnah encourages moderation to facilitate marriage, the bride is entitled to whatever amount is mutually agreed.
-            </p>
-            <p>
-              <strong className="text-emerald-400">Hanafi School:</strong> Requires a minimum (10 Dirhams). Other schools of thought (Shafi'i, Maliki, Hanbali) do not specify a strict minimum but recommend anything of value.
-            </p>
+      {/* Mahr Principles - Collapsible, open by default */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <button
+          onClick={() => setShowPrinciples(!showPrinciples)}
+          className="w-full px-4 py-3 flex items-center justify-between text-left"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm">📖</span>
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Mahr Principles in Islam</span>
           </div>
-        </div>
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-emerald-500 rounded-full blur-[100px] opacity-20"></div>
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showPrinciples ? 'rotate-180' : ''}`} />
+        </button>
+        
+        {showPrinciples && (
+          <div className="px-4 pb-4 border-t border-slate-100 dark:border-slate-700 animate-in slide-in-from-top-2 duration-200">
+            <div className="space-y-3 mt-3 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              <p>
+                <strong className="text-emerald-600 dark:text-emerald-400">Essential Obligation:</strong> Mahr is a mandatory gift from the groom to the bride. It is her exclusive property and symbolizes the groom's responsibility to provide and protect.
+              </p>
+              <p>
+                <strong className="text-emerald-600 dark:text-emerald-400">Flexibility:</strong> There is no maximum cap on Mahr. While the Sunnah encourages moderation to facilitate marriage, the bride is entitled to whatever amount is mutually agreed.
+              </p>
+              <p>
+                <strong className="text-emerald-600 dark:text-emerald-400">Hanafi School:</strong> Requires a minimum (10 Dirhams). Other schools of thought (Shafi'i, Maliki, Hanbali) do not specify a strict minimum but recommend anything of value.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Success Toast for Contract CTA */}
-      {showContractCTA && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top duration-300">
-          <div className="bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3">
-            <Scroll className="w-5 h-5" />
-            <div>
-              <p className="font-bold">Mahr value saved!</p>
-              <p className="text-sm text-emerald-100">Go to the Certificate tab to continue</p>
-            </div>
-            <button onClick={() => setShowContractCTA(false)} className="ml-2 p-1 hover:bg-emerald-500 rounded-full">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {selectedMahrInfo && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedMahrInfo(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-[2rem] p-8 max-w-lg w-full shadow-2xl animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h3 className="text-2xl font-serif font-bold text-slate-800 dark:text-white">{selectedMahrInfo.name}</h3>
-                <p className="text-emerald-600 dark:text-emerald-400 font-medium">{selectedMahrInfo.arabicName}</p>
-              </div>
-              <button onClick={() => setSelectedMahrInfo(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                <X className="w-6 h-6 text-slate-400" />
-              </button>
-            </div>
-            <div className="space-y-4 mb-6">
-              <div className="bg-slate-50 dark:bg-slate-700 p-4 rounded-2xl text-slate-700 dark:text-slate-200 text-sm leading-relaxed border border-slate-100 dark:border-slate-600">
-                {selectedMahrInfo.details}
-              </div>
-              <div className="flex justify-between items-center px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl">
-                <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase">Calculated Value</span>
-                <span className="font-bold text-emerald-900 dark:text-emerald-200 text-lg">
-                  {selectedCurrency.symbol}{(selectedMahrInfo.grams * silverPricePerGram).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3">
-              <button 
-                onClick={() => handleUseForContract(selectedMahrInfo)}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold transition-colors flex items-center justify-center gap-2"
-              >
-                <Scroll className="w-5 h-5" />
-                Use for Certificate
-              </button>
-              <button 
-                onClick={() => setSelectedMahrInfo(null)}
-                className="w-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 py-3 rounded-2xl font-bold transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
