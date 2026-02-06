@@ -5,6 +5,20 @@ import { MAHR_TYPES, SILVER_NISAB_DIVISOR, CURRENCIES } from '../constants';
 import { MahrType } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
+// Exchange rates from GBP (must match BudgetPlanner)
+const EXCHANGE_RATES_FROM_GBP: Record<string, number> = {
+  GBP: 1,
+  USD: 1.27,
+  EUR: 1.17,
+  AED: 4.66,
+  SAR: 4.76,
+  PKR: 354,
+  INR: 106,
+  MYR: 5.98,
+  CAD: 1.72,
+  AUD: 1.94,
+};
+
 const RefreshIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>
@@ -14,7 +28,9 @@ const RefreshIcon = (props: React.SVGProps<SVGSVGElement>) => (
 export const MahrCalculator: React.FC = () => {
   // Persisted state
   const [silverPricePerGram, setSilverPricePerGram] = useLocalStorage<number>('mahr-silverPrice', 0.85);
+  const [silverPriceGBP, setSilverPriceGBP] = useLocalStorage<number>('mahr-silverPriceGBP', 0.85);
   const [currencyCode, setCurrencyCode] = useLocalStorage<string>('mahr-currency', 'GBP');
+  const [priceCurrency, setPriceCurrency] = useLocalStorage<string>('mahr-priceCurrency', 'GBP');
   
   // Derive currency object from stored code
   const selectedCurrency = useMemo(() => 
@@ -46,22 +62,64 @@ export const MahrCalculator: React.FC = () => {
     setFetchError(null);
     setPriceChange(null);
     const oldPrice = silverPricePerGram;
+    const fetchCurrency = selectedCurrency.code;
+    
     try {
-      const response = await fetch(`/api/silver-price?currency=${selectedCurrency.code}`);
+      const response = await fetch(`/api/silver-price?currency=${fetchCurrency}`);
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        // Dev mode fallback
+        const rate = EXCHANGE_RATES_FROM_GBP[fetchCurrency] || 1;
+        const estimated = Math.round(0.85 * rate * 100) / 100;
+        setSilverPricePerGram(estimated);
+        setSilverPriceGBP(0.85);
+        setPriceCurrency(fetchCurrency);
+        setLastUpdated(new Date().toLocaleTimeString() + ' (estimated)');
+        setFetchError('API unavailable - using estimated price');
+        return;
+      }
+      
       const data = await response.json();
       
+      // If API doesn't support this currency, fall back to GBP + convert
       if (data.error) {
-        setFetchError(`${data.error}. Showing most recent cached data.`);
+        console.warn(`API error for ${fetchCurrency}: ${data.error}, falling back to GBP`);
+        const gbpResponse = await fetch(`/api/silver-price?currency=GBP`);
+        const gbpData = await gbpResponse.json();
+        
+        if (gbpData.price) {
+          const rate = EXCHANGE_RATES_FROM_GBP[fetchCurrency] || 1;
+          const convertedPrice = Math.round(gbpData.price * rate * 100) / 100;
+          setSilverPriceGBP(gbpData.price);
+          setSilverPricePerGram(convertedPrice);
+          setPriceCurrency(fetchCurrency);
+          setLastUpdated(new Date().toLocaleTimeString());
+          setFetchError(`Live rate converted from GBP (${fetchCurrency} not directly supported)`);
+          
+          if (oldPrice > 0 && priceCurrency === fetchCurrency) {
+            const direction = convertedPrice > oldPrice ? 'up' : convertedPrice < oldPrice ? 'down' : 'same';
+            setPriceChange({ direction, oldPrice, newPrice: convertedPrice });
+          }
+        } else {
+          setFetchError('Failed to fetch price. Showing most recent cached data.');
+        }
         return;
       }
       
       if (data.price) {
         const newPrice = data.price;
         setSilverPricePerGram(newPrice);
+        setPriceCurrency(fetchCurrency);
         setLastUpdated(new Date().toLocaleTimeString());
         
-        // Track price change
-        if (oldPrice > 0) {
+        // Also store GBP equivalent for fallback
+        if (fetchCurrency === 'GBP') {
+          setSilverPriceGBP(newPrice);
+        }
+        
+        // Track price change only if same currency as last fetch
+        if (oldPrice > 0 && priceCurrency === fetchCurrency) {
           const direction = newPrice > oldPrice ? 'up' : newPrice < oldPrice ? 'down' : 'same';
           setPriceChange({ direction, oldPrice, newPrice });
         }
@@ -72,7 +130,13 @@ export const MahrCalculator: React.FC = () => {
       }
     } catch (error) {
       console.error("Error fetching silver price:", error);
-      setFetchError("Failed to fetch live price. Showing most recent cached data.");
+      const rate = EXCHANGE_RATES_FROM_GBP[fetchCurrency] || 1;
+      const estimated = Math.round(0.85 * rate * 100) / 100;
+      setSilverPricePerGram(estimated);
+      setSilverPriceGBP(0.85);
+      setPriceCurrency(fetchCurrency);
+      setLastUpdated(new Date().toLocaleTimeString() + ' (estimated)');
+      setFetchError('Could not fetch live price - using estimate');
     } finally {
       setIsFetching(false);
     }
@@ -80,8 +144,12 @@ export const MahrCalculator: React.FC = () => {
 
   const handleCurrencyChange = (code: string) => {
     setCurrencyCode(code);
-    setLastUpdated(null);
-    setSources([]);
+    // Convert existing price to new currency
+    const rate = EXCHANGE_RATES_FROM_GBP[code] || 1;
+    setSilverPricePerGram(Math.round(silverPriceGBP * rate * 100) / 100);
+    setPriceCurrency(code);
+    // Clear price change since currency changed
+    setPriceChange(null);
   };
 
   // Color configs for each mahr type - glass/outline style
@@ -165,8 +233,13 @@ export const MahrCalculator: React.FC = () => {
                 step="0.0001" 
                 value={silverPricePerGram}
                 onChange={(e) => {
-                  setSilverPricePerGram(parseFloat(e.target.value) || 0);
+                  const localPrice = parseFloat(e.target.value) || 0;
+                  setSilverPricePerGram(localPrice);
+                  // Also update GBP base for currency conversion
+                  const rate = EXCHANGE_RATES_FROM_GBP[selectedCurrency.code] || 1;
+                  setSilverPriceGBP(localPrice / rate);
                   setLastUpdated(null);
+                  setPriceChange(null);
                 }}
                 className="w-full pl-7 pr-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-emerald-400 transition-all"
               />
@@ -193,6 +266,9 @@ export const MahrCalculator: React.FC = () => {
             {lastUpdated && (
               <span className="text-slate-500 dark:text-slate-400">
                 Updated: <span className="font-medium text-slate-600 dark:text-slate-300">{lastUpdated}</span>
+                {fetchError && fetchError.includes('converted from GBP') && (
+                  <span className="text-slate-400 dark:text-slate-500"> • Converted from GBP</span>
+                )}
               </span>
             )}
             {priceChange && priceChange.direction !== 'same' && (
