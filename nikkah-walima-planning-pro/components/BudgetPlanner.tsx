@@ -916,7 +916,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                         setEditingCategory(null);
                         setEditingValue('');
                       }}
-                      className="w-full pl-5 pr-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-right font-semibold text-slate-700 dark:text-white text-sm focus:outline-none focus:border-emerald-400"
+                      className="w-full pl-5 pr-2 py-1.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-right font-semibold text-slate-700 dark:text-white text-sm focus:outline-none focus:border-emerald-400"
                     />
                   </div>
                 </div>
@@ -983,7 +983,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                                 handleActualCostChange(cat.key, parseInt(val) || 0);
                               }}
                               placeholder={amount.toString()}
-                              className={`w-full pl-6 pr-2 py-1.5 bg-white dark:bg-slate-700 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
+                              className={`w-full pl-6 pr-2 py-1.5 bg-white dark:bg-slate-900/50 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
                                 isOverBudget ? 'border-red-300 dark:border-red-500' : 'border-slate-200 dark:border-slate-600'
                               }`}
                             />
@@ -1003,7 +1003,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                                 handleAmountPaidChange(cat.key, parseInt(val) || 0);
                               }}
                               placeholder="0"
-                              className={`w-full pl-6 pr-2 py-1.5 bg-white dark:bg-slate-700 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
+                              className={`w-full pl-6 pr-2 py-1.5 bg-white dark:bg-slate-900/50 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
                                 isOverPaid ? 'border-orange-300 dark:border-orange-500' : 'border-slate-200 dark:border-slate-600'
                               }`}
                             />
@@ -1037,7 +1037,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                             value={data.vendor || ''}
                             onChange={(e) => updateExpenseField(cat.key, 'vendor', e.target.value)}
                             placeholder="Vendor name..."
-                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
                           />
                         </div>
                         {/* Notes - Auto-expanding textarea */}
@@ -1073,7 +1073,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                             }}
                             placeholder="Any notes..."
                             rows={1}
-                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 resize-none overflow-hidden"
+                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 resize-none overflow-hidden"
                             style={{ minHeight: '34px' }}
                           />
                         </div>
@@ -1447,7 +1447,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
                     placeholder={`Enter item name...`}
-                    className="flex-1 px-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                    className="flex-1 px-3 py-2.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleAddCustomCategory(section);
                       if (e.key === 'Escape') { setAddingToSection(null); setNewCategoryName(''); }
@@ -1523,7 +1523,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
           <select
             value={currencyCode}
             onChange={(e) => setCurrencyCode(e.target.value)}
-            className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-xl transition-all outline-none text-sm font-semibold text-slate-800 dark:text-white"
+            className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-xl transition-all outline-none text-sm font-semibold text-slate-800 dark:text-white"
           >
             {CURRENCIES.map(c => (
               <option key={c.code} value={c.code}>{c.symbol} {c.code} - {c.name}</option>
@@ -1543,7 +1543,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 value={totalBudget} 
                 onChange={(e) => setTotalBudget(e.target.value)} 
                 placeholder="25,000" 
-                className={`w-full pl-8 pr-2 py-2.5 bg-slate-50 dark:bg-slate-700 border focus:bg-white dark:focus:bg-slate-600 rounded-xl transition-all outline-none text-base font-semibold text-slate-800 dark:text-white ${
+                className={`w-full pl-8 pr-2 py-2.5 bg-slate-50 dark:bg-slate-900/50 border focus:bg-white dark:focus:bg-slate-800 rounded-xl transition-all outline-none text-base font-semibold text-slate-800 dark:text-white ${
                   budgetError ? 'border-red-300 focus:border-red-400' : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
                 }`}
               />
@@ -1561,7 +1561,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 value={guestCount} 
                 onChange={(e) => setGuestCount(e.target.value)} 
                 placeholder="200" 
-                className={`w-full pl-8 pr-2 py-2.5 bg-slate-50 dark:bg-slate-700 border focus:bg-white dark:focus:bg-slate-600 rounded-xl transition-all outline-none text-base font-semibold text-slate-800 dark:text-white ${
+                className={`w-full pl-8 pr-2 py-2.5 bg-slate-50 dark:bg-slate-900/50 border focus:bg-white dark:focus:bg-slate-800 rounded-xl transition-all outline-none text-base font-semibold text-slate-800 dark:text-white ${
                   guestError ? 'border-red-300 focus:border-red-400' : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
                 }`}
               />
