@@ -198,8 +198,8 @@ export const MahrCalculator: React.FC = () => {
             {priceChange && priceChange.direction !== 'same' && (
               <span className={`font-medium px-2 py-0.5 rounded-full ${
                 priceChange.direction === 'up' 
-                  ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' 
-                  : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' 
+                  : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
               }`}>
                 {priceChange.direction === 'up' ? '↑' : '↓'} Silver price {priceChange.direction === 'up' ? 'increased' : 'decreased'} ({selectedCurrency.symbol}{Math.abs(priceChange.newPrice - priceChange.oldPrice).toFixed(4)}/g)
               </span>
