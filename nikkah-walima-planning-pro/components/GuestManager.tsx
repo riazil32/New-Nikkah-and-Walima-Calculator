@@ -295,7 +295,7 @@ export const GuestManager: React.FC = () => {
   const [newCustomEventName, setNewCustomEventName] = useState('');
   const [newCustomEventIcon, setNewCustomEventIcon] = useState('🎉');
   const [clipboardCopied, setClipboardCopied] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; title: string; description?: string } | null>(null);
 
   const moveMenuRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -409,11 +409,11 @@ export const GuestManager: React.FC = () => {
 
   // Toast auto-dismiss
   useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 3000);
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3500);
       return () => clearTimeout(timer);
     }
-  }, [toastMessage]);
+  }, [toast]);
 
   // ============================================================
   // HANDLERS
@@ -436,6 +436,7 @@ export const GuestManager: React.FC = () => {
     );
     if (individualForm.tableNumber.trim()) newGuest.tableNumber = individualForm.tableNumber.trim();
     setData(prev => ({ ...prev, guests: [...prev.guests, newGuest] }));
+    setToast({ type: 'success', title: 'Guest created', description: `${newGuest.name} has been added to the guest list` });
     setIndividualForm(prev => ({ ...prev, name: '', tableNumber: '' }));
   };
 
@@ -457,6 +458,7 @@ export const GuestManager: React.FC = () => {
 
     setExpandedGroups(prev => new Set([...prev, groupId]));
     setData(prev => ({ ...prev, guests: [...prev.guests, ...newGuests], groups: [...prev.groups, newGroup] }));
+    setToast({ type: 'success', title: 'Group created', description: `${newGroup.name} added with ${newGuests.length} member${newGuests.length !== 1 ? 's' : ''}` });
     setFamilyForm({
       familyName: '', side: 'groom', invitedTo: enabledEvents.map(e => e.id), tableNumber: '',
       members: [
@@ -614,7 +616,7 @@ export const GuestManager: React.FC = () => {
       return { ...prev, guests: newGuests, groups: newGroups };
     });
     setMoveMenuGuestId(null);
-    setToastMessage(targetGroupId ? 'Guest moved to group' : 'Guest removed from group');
+    setToast({ type: 'success', title: targetGroupId ? 'Guest moved' : 'Guest ungrouped', description: targetGroupId ? 'Guest has been moved to the group' : 'Guest is now ungrouped' });
   }, []);
 
   // Toggle event enabled
@@ -770,7 +772,7 @@ export const GuestManager: React.FC = () => {
     setShowImportModal(false);
     setImportPreview(null);
     setImportError(null);
-    setToastMessage(`Imported ${newGuests.length} guests${newGroups.length > 0 ? ` in ${newGroups.length} groups` : ''}`);
+    setToast({ type: 'success', title: 'Import complete', description: `${newGuests.length} guest${newGuests.length !== 1 ? 's' : ''} imported${newGroups.length > 0 ? ` in ${newGroups.length} group${newGroups.length !== 1 ? 's' : ''}` : ''}` });
   };
 
   // CSV Template Download
@@ -855,10 +857,10 @@ export const GuestManager: React.FC = () => {
 
       doc.save(`guest-list${mode !== 'all' ? `-${mode}` : ''}.pdf`);
       setShowExportMenu(false);
-      setToastMessage('PDF exported successfully');
+      setToast({ type: 'success', title: 'PDF exported', description: 'Guest list has been saved as PDF' });
     } catch (err) {
       console.error('PDF export error:', err);
-      setToastMessage('Failed to export PDF');
+      setToast({ type: 'error', title: 'Export failed', description: 'Could not generate the PDF file' });
     }
   };
 
@@ -868,10 +870,10 @@ export const GuestManager: React.FC = () => {
     try {
       await navigator.clipboard.writeText(text);
       setClipboardCopied(true);
-      setToastMessage('Guest list copied to clipboard');
+      setToast({ type: 'success', title: 'Copied to clipboard', description: 'Guest list is ready to paste' });
       setTimeout(() => setClipboardCopied(false), 2000);
     } catch {
-      setToastMessage('Failed to copy to clipboard');
+      setToast({ type: 'error', title: 'Copy failed', description: 'Could not access the clipboard' });
     }
   };
 
@@ -892,14 +894,14 @@ export const GuestManager: React.FC = () => {
       </div>
 
       {/* Stats Bar */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 mb-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5">
           <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
             {activeFilter === 'all' ? 'All Guests' : enabledEvents.find(e => e.id === activeFilter)?.name + ' Guests'}
           </h3>
-          {/* Segregation toggle */}
           <label className="flex items-center gap-2 cursor-pointer">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 hidden sm:inline">Segregation</span>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Segregation</span>
             <div className={`relative w-9 h-5 rounded-full transition-colors ${
               data.segregationMode ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
             }`}>
@@ -910,50 +912,94 @@ export const GuestManager: React.FC = () => {
             </div>
           </label>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-slate-800 dark:text-white">{stats.total}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-slate-800 dark:text-white">
-              {stats.adults}<span className="text-sm text-slate-400">/{stats.children}</span>
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Adults/Kids</p>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-0.5">
-              <span className="text-lg font-bold text-teal-600 dark:text-teal-400">{stats.groomSide}</span>
-              <span className="text-slate-300 dark:text-slate-600">/</span>
-              <span className="text-lg font-bold text-rose-600 dark:text-rose-400">{stats.brideSide}</span>
-              {stats.jointSide > 0 && (
-                <>
-                  <span className="text-slate-300 dark:text-slate-600">/</span>
-                  <span className="text-lg font-bold text-violet-600 dark:text-violet-400">{stats.jointSide}</span>
-                </>
-              )}
+        {/* Divider */}
+        <div className="border-t border-slate-200 dark:border-slate-700" />
+        {/* Stats Content */}
+        <div className="px-3 sm:px-4 py-3">
+          {/* Row 1: Total + Adults/Kids */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-3">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-slate-800 dark:text-white">{stats.total}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total</p>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              {stats.jointSide > 0 ? 'Groom/Bride/Joint' : 'Groom/Bride'}
-            </p>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-0.5">
-              <span className="text-lg font-bold text-blue-600 dark:text-blue-400">{stats.males}</span>
-              <span className="text-slate-300 dark:text-slate-600">/</span>
-              <span className="text-lg font-bold text-pink-600 dark:text-pink-400">{stats.females}</span>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                {stats.adults}<span className="text-sm text-slate-400">/{stats.children}</span>
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Adults/Kids</p>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Male/Female</p>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1.5">
-              <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400" title="Confirmed">{stats.confirmed}<span className="text-[10px] font-medium text-emerald-500/70 ml-0.5">&#10003;</span></span>
-              <span className="text-lg font-bold text-slate-400" title="Pending">{stats.pending}<span className="text-[10px] font-medium text-slate-400/70 ml-0.5">?</span></span>
-              {stats.declined > 0 && (
-                <span className="text-lg font-bold text-red-500" title="Declined">{stats.declined}<span className="text-[10px] font-medium text-red-400/70 ml-0.5">&#10007;</span></span>
-              )}
+            {/* Desktop only: remaining 3 stats inline */}
+            <div className="text-center hidden sm:block">
+              <div className="flex items-center justify-center gap-0.5">
+                <span className="text-lg font-bold text-teal-600 dark:text-teal-400">{stats.groomSide}</span>
+                <span className="text-slate-300 dark:text-slate-600">/</span>
+                <span className="text-lg font-bold text-rose-600 dark:text-rose-400">{stats.brideSide}</span>
+                {stats.jointSide > 0 && (
+                  <>
+                    <span className="text-slate-300 dark:text-slate-600">/</span>
+                    <span className="text-lg font-bold text-violet-600 dark:text-violet-400">{stats.jointSide}</span>
+                  </>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                {stats.jointSide > 0 ? 'Groom/Bride/Joint' : 'Groom/Bride'}
+              </p>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">RSVP</p>
+            <div className="text-center hidden sm:block">
+              <div className="flex items-center justify-center gap-0.5">
+                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">{stats.males}</span>
+                <span className="text-slate-300 dark:text-slate-600">/</span>
+                <span className="text-lg font-bold text-pink-600 dark:text-pink-400">{stats.females}</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Male/Female</p>
+            </div>
+            <div className="text-center hidden sm:block">
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400" title="Confirmed">{stats.confirmed}<span className="text-[10px] font-medium text-emerald-500/70 ml-0.5">&#10003;</span></span>
+                <span className="text-lg font-bold text-slate-400" title="Pending">{stats.pending}<span className="text-[10px] font-medium text-slate-400/70 ml-0.5">?</span></span>
+                {stats.declined > 0 && (
+                  <span className="text-lg font-bold text-red-500" title="Declined">{stats.declined}<span className="text-[10px] font-medium text-red-400/70 ml-0.5">&#10007;</span></span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">RSVP</p>
+            </div>
+          </div>
+          {/* Row 2 (mobile only): Groom/Bride + Male/Female + RSVP */}
+          <div className="grid grid-cols-3 gap-2 sm:hidden">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-0.5">
+                <span className="text-base font-bold text-teal-600 dark:text-teal-400">{stats.groomSide}</span>
+                <span className="text-slate-300 dark:text-slate-600 text-xs">/</span>
+                <span className="text-base font-bold text-rose-600 dark:text-rose-400">{stats.brideSide}</span>
+                {stats.jointSide > 0 && (
+                  <>
+                    <span className="text-slate-300 dark:text-slate-600 text-xs">/</span>
+                    <span className="text-base font-bold text-violet-600 dark:text-violet-400">{stats.jointSide}</span>
+                  </>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                {stats.jointSide > 0 ? 'Groom/Bride/Joint' : 'Groom/Bride'}
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-0.5">
+                <span className="text-base font-bold text-blue-600 dark:text-blue-400">{stats.males}</span>
+                <span className="text-slate-300 dark:text-slate-600 text-xs">/</span>
+                <span className="text-base font-bold text-pink-600 dark:text-pink-400">{stats.females}</span>
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Male/Female</p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-base font-bold text-emerald-600 dark:text-emerald-400" title="Confirmed">{stats.confirmed}<span className="text-[9px] font-medium text-emerald-500/70 ml-px">&#10003;</span></span>
+                <span className="text-base font-bold text-slate-400" title="Pending">{stats.pending}<span className="text-[9px] font-medium text-slate-400/70 ml-px">?</span></span>
+                {stats.declined > 0 && (
+                  <span className="text-base font-bold text-red-500" title="Declined">{stats.declined}<span className="text-[9px] font-medium text-red-400/70 ml-px">&#10007;</span></span>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">RSVP</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1565,111 +1611,113 @@ export const GuestManager: React.FC = () => {
       {showSettingsModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setShowSettingsModal(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto"
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 sm:p-5 max-w-md w-full shadow-2xl max-h-[80vh] flex flex-col"
             onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Settings</h3>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-base font-bold text-slate-800 dark:text-white">Settings</h3>
               <button onClick={() => setShowSettingsModal(false)}
                 className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full">
-                <X className="w-5 h-5 text-slate-400" />
+                <X className="w-4 h-4 text-slate-400" />
               </button>
             </div>
 
-            {/* Segregation Mode */}
-            <div className="mb-6">
-              <label className="flex items-center justify-between cursor-pointer p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                <div>
-                  <p className="font-semibold text-slate-800 dark:text-white">Segregation Mode</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">View male/female counts for segregated seating</p>
-                </div>
-                <div className={`relative w-11 h-6 rounded-full transition-colors ${
-                  data.segregationMode ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-500'
-                }`}>
-                  <input type="checkbox" checked={data.segregationMode} onChange={toggleSegregationMode} className="sr-only" />
-                  <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    data.segregationMode ? 'translate-x-5' : 'translate-x-0.5'
-                  }`} />
-                </div>
-              </label>
-            </div>
+            <div className="overflow-y-auto flex-1 -mx-1 px-1">
+              {/* Segregation Mode */}
+              <div className="mb-4">
+                <label className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">Segregation Mode</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">View male/female counts separately</p>
+                  </div>
+                  <div className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ml-3 ${
+                    data.segregationMode ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-500'
+                  }`}>
+                    <input type="checkbox" checked={data.segregationMode} onChange={toggleSegregationMode} className="sr-only" />
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      data.segregationMode ? 'translate-x-5' : 'translate-x-0.5'
+                    }`} />
+                  </div>
+                </label>
+              </div>
 
-            {/* Event Configuration */}
-            <div>
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Events to track</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-                Enable the events you want to track guest invitations for
-              </p>
+              {/* Event Configuration */}
+              <div>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-0.5">Events to track</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2.5">
+                  Toggle events for guest invitations
+                </p>
 
-              {ALL_EVENT_PRESETS.map(category => {
-                const categoryEvents = data.events.filter(de => category.events.some(pe => pe.id === de.id));
-                if (categoryEvents.length === 0) return null;
-                return (
-                  <div key={category.category} className="mb-4">
-                    <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">{category.category}</p>
-                    <div className="space-y-1.5">
-                      {categoryEvents.map(event => (
-                        <button key={event.id} onClick={() => toggleEventEnabled(event.id)}
-                          className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                {ALL_EVENT_PRESETS.map(category => {
+                  const categoryEvents = data.events.filter(de => category.events.some(pe => pe.id === de.id));
+                  if (categoryEvents.length === 0) return null;
+                  return (
+                    <div key={category.category} className="mb-3">
+                      <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1.5">{category.category}</p>
+                      <div className="space-y-1">
+                        {categoryEvents.map(event => (
+                          <button key={event.id} onClick={() => toggleEventEnabled(event.id)}
+                            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-all text-left ${
+                              event.enabled
+                                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-400 text-blue-700 dark:text-blue-300'
+                                : 'bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+                            }`}>
+                            <span className="text-base">{event.icon}</span>
+                            <span className="flex-1 text-sm font-medium">{event.name}</span>
+                            {event.enabled && <Check className="w-4 h-4" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Custom Events */}
+                <div className="mb-3">
+                  <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1.5">Custom Events</p>
+                  <div className="space-y-1">
+                    {data.events.filter(e => e.isCustom).map(event => (
+                      <div key={event.id} className="flex items-center gap-1.5">
+                        <button onClick={() => toggleEventEnabled(event.id)}
+                          className={`flex-1 flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-all text-left ${
                             event.enabled
                               ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-400 text-blue-700 dark:text-blue-300'
                               : 'bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
                           }`}>
-                          <span className="text-xl">{event.icon}</span>
-                          <span className="flex-1 font-medium">{event.name}</span>
-                          {event.enabled && <Check className="w-5 h-5" />}
+                          <span className="text-base">{event.icon}</span>
+                          <span className="flex-1 text-sm font-medium">{event.name}</span>
+                          {event.enabled && <Check className="w-4 h-4" />}
                         </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Custom Events */}
-              <div className="mb-4">
-                <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">Custom Events</p>
-                <div className="space-y-1.5">
-                  {data.events.filter(e => e.isCustom).map(event => (
-                    <div key={event.id} className="flex items-center gap-2">
-                      <button onClick={() => toggleEventEnabled(event.id)}
-                        className={`flex-1 flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
-                          event.enabled
-                            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-400 text-blue-700 dark:text-blue-300'
-                            : 'bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
-                        }`}>
-                        <span className="text-xl">{event.icon}</span>
-                        <span className="flex-1 font-medium">{event.name}</span>
-                        {event.enabled && <Check className="w-5 h-5" />}
-                      </button>
-                      <button onClick={() => handleDeleteCustomEvent(event.id)}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
-                        <Trash className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                {/* Add custom event */}
-                <div className="flex items-center gap-2 mt-3">
-                  <select value={newCustomEventIcon} onChange={(e) => setNewCustomEventIcon(e.target.value)}
-                    className="w-14 px-1 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-center text-lg outline-none">
-                    {['🎉', '🎊', '💐', '🎶', '🎭', '🌙', '☪️', '🕌', '🎈', '🍰', '💒', '🚗'].map(icon => (
-                      <option key={icon} value={icon}>{icon}</option>
+                        <button onClick={() => handleDeleteCustomEvent(event.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
+                          <Trash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     ))}
-                  </select>
-                  <input type="text" value={newCustomEventName} onChange={(e) => setNewCustomEventName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomEvent(); }}
-                    placeholder="Event name..."
-                    className="flex-1 px-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-800 dark:text-white placeholder:text-slate-400 outline-none focus:border-blue-400"
-                  />
-                  <button onClick={handleAddCustomEvent} disabled={!newCustomEventName.trim()}
-                    className="px-3 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white font-semibold text-sm rounded-lg transition-colors disabled:cursor-not-allowed">
-                    Add
-                  </button>
+                  </div>
+                  {/* Add custom event */}
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <select value={newCustomEventIcon} onChange={(e) => setNewCustomEventIcon(e.target.value)}
+                      className="w-12 px-1 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-center text-base outline-none">
+                      {['🎉', '🎊', '💐', '🎶', '🎭', '🌙', '☪️', '🕌', '🎈', '🍰', '💒', '🚗'].map(icon => (
+                        <option key={icon} value={icon}>{icon}</option>
+                      ))}
+                    </select>
+                    <input type="text" value={newCustomEventName} onChange={(e) => setNewCustomEventName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomEvent(); }}
+                      placeholder="Event name..."
+                      className="flex-1 px-2.5 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-800 dark:text-white placeholder:text-slate-400 outline-none focus:border-blue-400"
+                    />
+                    <button onClick={handleAddCustomEvent} disabled={!newCustomEventName.trim()}
+                      className="px-2.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white font-semibold text-sm rounded-lg transition-colors disabled:cursor-not-allowed">
+                      Add
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
             <button onClick={() => setShowSettingsModal(false)}
-              className="w-full mt-4 py-3 bg-slate-800 dark:bg-white text-white dark:text-slate-800 font-bold rounded-xl hover:opacity-90 transition-opacity">
+              className="w-full mt-3 py-2.5 bg-slate-800 dark:bg-white text-white dark:text-slate-800 font-bold text-sm rounded-xl hover:opacity-90 transition-opacity flex-shrink-0">
               Done
             </button>
           </div>
@@ -1786,9 +1834,34 @@ export const GuestManager: React.FC = () => {
       )}
 
       {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-slate-800 dark:bg-white text-white dark:text-slate-800 font-medium text-sm rounded-xl shadow-lg animate-in slide-in-from-bottom-4 duration-200">
-          {toastMessage}
+      {toast && (
+        <div className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-[60] w-[340px] max-w-[calc(100vw-2rem)]">
+          <div className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-xl border backdrop-blur-sm transition-all duration-200 ${
+            toast.type === 'error'
+              ? 'bg-white dark:bg-slate-800 border-red-200 dark:border-red-800/50'
+              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+          }`}>
+            <div className={`flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center ${
+              toast.type === 'error' ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'
+              : toast.type === 'success' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'
+              : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
+            }`}>
+              {toast.type === 'error' ? (
+                <X className="w-3 h-3" />
+              ) : toast.type === 'success' ? (
+                <Check className="w-3 h-3" />
+              ) : (
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-800 dark:text-white">{toast.title}</p>
+              {toast.description && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{toast.description}</p>}
+            </div>
+            <button onClick={() => setToast(null)} className="flex-shrink-0 mt-0.5 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded transition-colors">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       )}
     </div>
