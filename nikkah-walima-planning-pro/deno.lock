@@ -16,6 +16,8 @@
         "npm:@types/node@^22.14.0",
         "npm:@vitejs/plugin-react@5",
         "npm:autoprefixer@^10.4.23",
+        "npm:jspdf-autotable@^5.0.7",
+        "npm:jspdf@^4.1.0",
         "npm:postcss@^8.5.6",
         "npm:react-dom@^19.2.3",
         "npm:react@^19.2.3",
