@@ -1746,11 +1746,14 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
       </div>
 
       {/* Financial Summary - Always shown */}
-      <div className="bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/80 rounded-2xl p-4 mb-6 border border-slate-200 dark:border-slate-700 shadow-sm">
-        <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wide">
-          💰 Financial Summary
-        </h3>
-        <div className="space-y-2">
+      <div className="bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/80 rounded-2xl mb-6 border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="px-4 py-2.5">
+          <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-2">
+            💰 Financial Summary
+          </h3>
+        </div>
+        <div className="border-t border-slate-200 dark:border-slate-700" />
+        <div className="p-4 space-y-2">
           <div className="flex justify-between items-start text-sm">
             <span className="text-slate-500 dark:text-slate-400">Wedding Expenses</span>
             <div className="text-right">
@@ -1785,13 +1788,13 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
               </span>
             </div>
           </div>
+          {/* Guidance text - only show if Mahr is set */}
+          {mahrActualCost > 0 && (
+            <p className="text-[12px] text-slate-400 dark:text-slate-400 mt-3 italic text-center">
+              Mahr is tracked separately as a religious obligation, not a wedding expense.
+            </p>
+          )}
         </div>
-        {/* Guidance text - only show if Mahr is set */}
-        {mahrActualCost > 0 && (
-          <p className="text-[12px] text-slate-400 dark:text-slate-400 mt-3 italic text-center">
-            Mahr is tracked separately as a religious obligation, not a wedding expense.
-          </p>
-        )}
       </div>
 
       {/* Expense Tracking Summary */}
@@ -1806,9 +1809,9 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         const displayPercentage = Math.min(100, paymentPercentage);
         
         return (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 md:p-6 mb-6 border border-slate-200 dark:border-slate-700 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl mb-6 border border-slate-200 dark:border-slate-700 shadow-sm">
+            <div className="flex items-center justify-between px-4 md:px-6 py-2.5">
+              <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-2">
                 💰 Payment Tracking
               </h3>
               {isOverBudgetTotal && (
@@ -1817,6 +1820,8 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 </span>
               )}
             </div>
+            <div className="border-t border-slate-200 dark:border-slate-700" />
+            <div className="p-4 md:p-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Total Budget</p>
@@ -1868,6 +1873,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 )}
               </div>
             )}
+            </div>
           </div>
         );
       })()}
