@@ -1388,7 +1388,7 @@ export const GuestManager: React.FC = () => {
                       ) : <span className="w-[26px] flex-shrink-0" />}
                     </div>
                     {/* Row 2: Gender+Type on smaller screens, aligned with name field */}
-                    <div className="flex md:hidden items-center gap-3 mt-1.5 ml-[28px]">
+                    <div className="flex md:hidden items-center gap-3 mt-2 ml-[28px]">
                       <div className="inline-flex rounded-md overflow-hidden border border-slate-200 dark:border-slate-600">
                         {(['male', 'female'] as const).map(gender => (
                           <button key={gender} onClick={() => updateFamilyMember(index, 'gender', gender)}
