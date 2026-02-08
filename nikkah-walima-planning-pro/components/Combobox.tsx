@@ -83,19 +83,19 @@ export const Combobox: React.FC<ComboboxProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-600 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white text-left flex items-center justify-between"
+        className={`w-full h-8 px-2.5 pr-7 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white text-left truncate ${isOpen ? 'border-emerald-400 dark:border-emerald-400' : 'focus:border-emerald-400'}`}
       >
         <span className={displayLabel ? '' : 'text-slate-400'}>
           {displayLabel || placeholder}
         </span>
-        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
+      <ChevronDown className={`absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden">
+        <div className="absolute z-50 w-full mt-1 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200/80 dark:border-slate-600/80 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] overflow-hidden">
           {/* Search Input */}
-          <div className="p-2 border-b border-slate-200 dark:border-slate-700">
+          <div className="p-1.5 border-b border-slate-200 dark:border-slate-700">
             <input
               ref={inputRef}
               type="text"
@@ -103,14 +103,14 @@ export const Combobox: React.FC<ComboboxProps> = ({
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={searchPlaceholder}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 text-slate-800 dark:text-white placeholder:text-slate-400"
+              className="w-full px-2.5 h-7 bg-slate-50 dark:bg-slate-700 rounded-md text-xs outline-none focus:ring-1 focus:ring-emerald-400 text-slate-800 dark:text-white placeholder:text-slate-400"
             />
           </div>
 
           {/* Options List */}
-          <div className="max-h-60 overflow-y-auto">
+          <div className="max-h-56 overflow-y-auto custom-scrollbar py-1">
             {filteredOptions.length === 0 ? (
-              <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 text-center">
+              <div className="px-2.5 py-2 text-xs text-slate-500 dark:text-slate-400 text-center">
                 {emptyMessage}
               </div>
             ) : (
@@ -119,15 +119,15 @@ export const Combobox: React.FC<ComboboxProps> = ({
                   key={option.value}
                   type="button"
                   onClick={() => handleSelect(option.value)}
-                  className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${
+                  className={`w-full px-2.5 py-1.5 text-left text-xs flex items-center justify-between transition-colors cursor-pointer ${
                     value === option.value
-                      ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
-                      : 'text-slate-700 dark:text-slate-300'
+                      ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-semibold'
+                      : 'text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-700/70'
                   }`}
                 >
                   <span>{option.label}</span>
                   {value === option.value && (
-                    <Check className="w-4 h-4 text-emerald-600" />
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
                   )}
                 </button>
               ))

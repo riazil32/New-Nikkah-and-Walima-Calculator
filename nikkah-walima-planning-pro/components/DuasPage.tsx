@@ -123,26 +123,23 @@ export const DuasPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Header */}
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 mb-4 shadow-lg shadow-emerald-200 dark:shadow-emerald-900/30">
-          <BookOpen className="w-8 h-8 text-white" />
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">
+      <div className="text-center mb-6">
+        <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">
           Duas & Sunnahs
         </h2>
-        <p className="text-slate-600 dark:text-slate-400 max-w-lg mx-auto">
+        <p className="text-slate-600 dark:text-slate-400 italic">
           Essential supplications and prophetic guidance for your blessed union
         </p>
       </div>
 
       {/* Info Banner */}
-      <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-2xl p-4 mb-8">
-        <div className="flex gap-3">
-          <span className="text-emerald-500 text-xl flex-shrink-0">📖</span>
-          <div className="text-sm text-emerald-800 dark:text-emerald-200">
-            <p className="font-semibold mb-1">Your Spiritual Companion</p>
+      <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-xl p-3 mb-4">
+        <div className="flex gap-2.5">
+          <BookOpen className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+          <div className="text-[11px] text-emerald-800 dark:text-emerald-200">
+            <p className="font-bold mb-0.5">Your Spiritual Companion</p>
             <p className="text-emerald-700 dark:text-emerald-300">
               Each dua includes Arabic text, transliteration, translation, and authentic sources.
               Tap any card to expand and learn more.
@@ -152,35 +149,35 @@ export const DuasPage: React.FC = () => {
       </div>
 
       {/* Duas Grid */}
-      <div className="grid gap-4">
+      <div className="grid gap-3">
         {DUAS.map((dua) => (
           <div
             key={dua.id}
-            className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden transition-all duration-300"
+            className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden transition-all duration-300"
           >
             {/* Card Header - Always visible */}
             <button
               onClick={() => toggleDua(dua.id)}
-              className="w-full p-4 flex items-center gap-4 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+              className="w-full p-3 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
             >
               {/* Icon with gradient background */}
-              <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${dua.color} flex items-center justify-center text-2xl shadow-lg flex-shrink-0`}>
+              <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${dua.color} flex items-center justify-center text-lg shadow-md flex-shrink-0`}>
                 {dua.icon}
               </div>
               
               {/* Title & Subtitle */}
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-slate-800 dark:text-white text-lg">
+                <h3 className="font-bold text-slate-800 dark:text-white text-sm">
                   {dua.title}
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   {dua.subtitle}
                 </p>
               </div>
 
               {/* Expand indicator */}
               <ChevronDown 
-                className={`w-5 h-5 text-slate-400 transition-transform duration-300 flex-shrink-0 ${
+                className={`w-4 h-4 text-slate-400 transition-transform duration-300 flex-shrink-0 ${
                   expandedDua === dua.id ? 'rotate-180' : ''
                 }`} 
               />
@@ -188,41 +185,41 @@ export const DuasPage: React.FC = () => {
 
             {/* Expanded Content */}
             {expandedDua === dua.id && (
-              <div className="px-4 pb-5 animate-in slide-in-from-top-2 duration-200">
+              <div className="px-3 pb-3 border-t border-slate-100 dark:border-slate-700">
                 {/* Arabic */}
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 mb-4">
-                  <p className="text-right text-2xl leading-loose font-arabic text-slate-800 dark:text-white" dir="rtl">
+                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 mt-3 mb-3">
+                  <p className="text-right text-xl leading-loose font-arabic text-slate-800 dark:text-white" dir="rtl">
                     {dua.arabic}
                   </p>
                 </div>
 
                 {/* Transliteration */}
-                <div className="mb-4">
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                <div className="mb-3">
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                     Transliteration
                   </p>
-                  <p className="text-slate-700 dark:text-slate-300 italic">
+                  <p className="text-xs text-slate-700 dark:text-slate-300 italic leading-relaxed">
                     {dua.transliteration}
                   </p>
                 </div>
 
                 {/* Translation */}
-                <div className="mb-4">
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                <div className="mb-3">
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                     Translation
                   </p>
-                  <p className="text-slate-800 dark:text-white">
+                  <p className="text-xs text-slate-800 dark:text-white leading-relaxed">
                     {dua.translation}
                   </p>
                 </div>
 
                 {/* Source */}
                 {dua.source && (
-                  <div className="mb-4">
-                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">
+                  <div className="mb-3">
+                    <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-1">
                       Source
                     </p>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
                       {dua.source}
                     </p>
                   </div>
@@ -230,11 +227,11 @@ export const DuasPage: React.FC = () => {
 
                 {/* Notes */}
                 {dua.notes && (
-                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl p-3">
-                    <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-1">
-                      💡 Note
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg p-2.5">
+                    <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-0.5">
+                      Note
                     </p>
-                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                    <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
                       {dua.notes}
                     </p>
                   </div>
@@ -246,11 +243,11 @@ export const DuasPage: React.FC = () => {
       </div>
 
       {/* Footer Note */}
-      <div className="mt-8 text-center">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          May Allah bless your marriage with love, mercy, and tranquility. ❤️
+      <div className="mt-6 text-center">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          May Allah bless your marriage with love, mercy, and tranquility.
         </p>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
           All duas verified from authentic hadith sources
         </p>
       </div>

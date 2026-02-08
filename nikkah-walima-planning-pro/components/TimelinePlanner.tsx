@@ -13,7 +13,9 @@ import {
   PrayerConflictInfo,
   CachedPrayerData
 } from '../types';
-import { Clock, Plus, Trash, Edit, AlertTriangle, MapPin, RefreshCw, X, Info, ChevronDown } from './Icons';
+import { DatePicker } from './DatePicker';
+import { EventSettingsModal } from './EventSettingsModal';
+import { Clock, Plus, Trash, Edit, AlertTriangle, MapPin, RefreshCw, X, Info, ChevronDown, SettingsIcon } from './Icons';
 import { Combobox } from './Combobox';
 import { COUNTRIES, CALCULATION_METHODS, ASR_SCHOOLS, getAutoCalculationMethod, getAutoAsrSchool } from '../constants';
 import { CustomSelect } from './CustomSelect';
@@ -326,8 +328,9 @@ const checkConflicts = (
 const generateId = (): string => Math.random().toString(36).substring(2, 9);
 
 export const TimelinePlanner: React.FC = () => {
-  // Read shared events config from Guest Manager (single source of truth)
-  const [guestManagerData] = useLocalStorage<GuestManagerData | null>('guest-manager-data', null);
+  // Read/write shared events config from Guest Manager (single source of truth)
+  const [guestManagerData, setGuestManagerData] = useLocalStorage<GuestManagerData | null>('guest-manager-data', null);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   
   // Get enabled events from Guest Manager, or use defaults
   const enabledEvents = useMemo(() => {
@@ -337,6 +340,34 @@ export const TimelinePlanner: React.FC = () => {
     return DEFAULT_WEDDING_EVENTS.filter(e => e.enabled);
   }, [guestManagerData?.events]);
   
+  // All events (for settings modal)
+  const allEvents = guestManagerData?.events || DEFAULT_WEDDING_EVENTS;
+
+  // Event management handlers (write to guest-manager-data)
+  const handleToggleEvent = (eventId: string) => {
+    setGuestManagerData(prev => {
+      if (!prev) return prev;
+      return { ...prev, events: prev.events.map(e => e.id === eventId ? { ...e, enabled: !e.enabled } : e) };
+    });
+  };
+
+  const handleAddCustomEvent = (name: string, icon: string) => {
+    if (!name.trim()) return;
+    const id = `custom-${Math.random().toString(36).substring(2, 9)}`;
+    const newEvent: WeddingEventConfig = { id, name: name.trim(), icon, enabled: true, isCustom: true };
+    setGuestManagerData(prev => {
+      if (!prev) return prev;
+      return { ...prev, events: [...prev.events, newEvent] };
+    });
+  };
+
+  const handleDeleteCustomEvent = (eventId: string) => {
+    setGuestManagerData(prev => {
+      if (!prev) return prev;
+      return { ...prev, events: prev.events.filter(e => e.id !== eventId) };
+    });
+  };
+
   // Legacy single timeline data (for migration)
   const [legacyData] = useLocalStorage<TimelineData | null>('timeline-data', null);
   
@@ -734,7 +765,14 @@ export const TimelinePlanner: React.FC = () => {
   const hasPrayerTimes = prayerTimes.length > 0;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-5xl mx-auto px-4 py-8"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)) {
+          e.preventDefault();
+          (e.target as HTMLElement).blur();
+        }
+      }}
+    >
       {/* Header */}
       <div className="text-center mb-6">
         <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">
@@ -747,44 +785,50 @@ export const TimelinePlanner: React.FC = () => {
 
       {/* Event Tabs - Only show if multiple events enabled */}
       {enabledEvents.length > 1 && (
-        <div className="mb-6">
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {enabledEvents.map(event => (
-              <button
-                key={event.id}
-                onClick={() => switchEvent(event.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
-                  activeEventId === event.id
-                    ? 'bg-emerald-600 text-white shadow-lg'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                <span>{event.icon}</span>
-                <span>{event.name}</span>
-                {multiEventData.eventTimelines[event.id]?.events?.length > 0 && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+        <div className="mb-4">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1.5 overflow-x-auto md:overflow-visible md:flex-wrap pb-2 -mx-4 px-4 md:mx-0 md:px-0 flex-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              {enabledEvents.map(event => (
+                <button
+                  key={event.id}
+                  onClick={() => switchEvent(event.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                     activeEventId === event.id
-                      ? 'bg-emerald-500'
-                      : 'bg-slate-200 dark:bg-slate-600'
-                  }`}>
-                    {multiEventData.eventTimelines[event.id].events.length}
-                  </span>
-                )}
-              </button>
-            ))}
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  <span className="text-sm">{event.icon}</span>
+                  <span>{event.name}</span>
+                  {multiEventData.eventTimelines[event.id]?.events?.length > 0 && (
+                    <span className={`text-[11px] px-1.5 py-px rounded-full ${
+                      activeEventId === event.id
+                        ? 'bg-emerald-500'
+                        : 'bg-slate-200 dark:bg-slate-600'
+                    }`}>
+                      {multiEventData.eventTimelines[event.id].events.length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="flex items-center gap-0.5 px-1.5 py-0.5 text-[11px] font-medium text-emerald-500 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors flex-shrink-0"
+            >
+              <SettingsIcon className="w-3 h-3" />
+              Manage
+            </button>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-            💡 Configure events in the Guest Manager to add more tabs
-          </p>
         </div>
       )}
 
       {/* Info Banner */}
-      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-4 mb-8">
-        <div className="flex gap-3">
-          <span className="text-amber-500 text-xl flex-shrink-0">☪️</span>
-          <div className="text-sm text-amber-800 dark:text-amber-200">
-            <p className="font-semibold mb-1">Prayer times are sacred anchors</p>
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl p-3 mb-4">
+        <div className="flex gap-2.5">
+          <span className="text-amber-500 text-sm flex-shrink-0 mt-0.5">☪️</span>
+          <div className="text-[11px] text-amber-800 dark:text-amber-200">
+            <p className="font-bold mb-0.5">Prayer times are sacred anchors</p>
             <p className="text-amber-700 dark:text-amber-300">
               Plan your events around Salah times. We'll warn you if any event overlaps with prayer time, showing you the deadline to pray before the next prayer begins.
             </p>
@@ -793,28 +837,28 @@ export const TimelinePlanner: React.FC = () => {
       </div>
 
       {/* Location & Date Card */}
-      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-6 md:p-8 mb-8 border border-slate-100 dark:border-slate-700">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-3 md:p-4 mb-4 border border-slate-200 dark:border-slate-700">
         
         {/* Collapsed Summary Bar - shown when prayer times loaded and form collapsed */}
         {hasPrayerTimes && !isFormExpanded ? (
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <MapPin className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <MapPin className="w-4 h-4 text-emerald-600 flex-shrink-0" />
               <div>
-                <p className="font-bold text-slate-800 dark:text-white">
+                <p className="text-xs font-bold text-slate-800 dark:text-white">
                   {timelineData.date && new Date(timelineData.date).toLocaleDateString('en-GB', { 
                     day: 'numeric', month: 'short', year: 'numeric' 
                   })}
                   {' • '}{timelineData.city}, {timelineData.country}
                 </p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   {hijriDate} • {timelineData.school === 1 ? 'Hanafi' : 'Standard'} Asr
                 </p>
               </div>
             </div>
             <button
               onClick={() => setIsFormExpanded(true)}
-              className="px-4 py-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-all"
+              className="px-3 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-all"
             >
               Edit Details
             </button>
@@ -822,15 +866,15 @@ export const TimelinePlanner: React.FC = () => {
         ) : (
           <>
             {/* Expanded Form Header */}
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-emerald-600" />
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-emerald-600" />
                 Wedding Details
               </h3>
               {hasPrayerTimes && (
                 <button
                   onClick={() => setIsFormExpanded(false)}
-                  className="text-sm text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"
+                  className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"
                 >
                   Collapse ↑
                 </button>
@@ -838,20 +882,19 @@ export const TimelinePlanner: React.FC = () => {
             </div>
             
             {/* Main Inputs: Date, City, Country */}
-            <div className="grid md:grid-cols-3 gap-4 mb-4">
+            <div className="grid md:grid-cols-3 gap-2.5 mb-3">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                   Wedding Date
                 </label>
-                <input
-                  type="date"
+                <DatePicker
                   value={timelineData.date}
-                  onChange={(e) => updateField('date', e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-600 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white"
+                  onChange={(val) => updateField('date', val)}
+                  placeholder="Select date"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                   City
                 </label>
                 <input
@@ -859,11 +902,11 @@ export const TimelinePlanner: React.FC = () => {
                   value={timelineData.city}
                   onChange={(e) => updateField('city', e.target.value)}
                   placeholder="e.g., London"
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-600 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white placeholder:text-slate-400"
+                  className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                   Country
                 </label>
                 <Combobox
@@ -880,40 +923,38 @@ export const TimelinePlanner: React.FC = () => {
             {/* Advanced Settings Toggle */}
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="mb-4 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-1 transition-colors"
+              className="mb-3 text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-1 transition-colors"
             >
-              <span>{showAdvanced ? '▼' : '▶'}</span>
+              <ChevronDown className={`w-3 h-3 transition-transform ${showAdvanced ? '' : '-rotate-90'}`} />
               Advanced Calculation Settings
             </button>
 
             {/* Advanced Settings (Collapsible) */}
             {showAdvanced && (
-              <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
+              <div className="mb-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-3">
+                <div className="grid md:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                       Calculation Method
                     </label>
                     <CustomSelect
                       value={String(timelineData.method)}
                       onChange={(val) => updateField('method', Number(val))}
                       options={CALCULATION_METHODS.map(method => ({ value: String(method.id), label: `${method.shortName} - ${method.name}` }))}
-                      triggerClassName="!h-10 !px-3 !text-sm !rounded-xl"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                       Asr Calculation (Madhab)
                     </label>
                     <CustomSelect
                       value={String(timelineData.school)}
                       onChange={(val) => updateField('school', Number(val))}
                       options={ASR_SCHOOLS.map(school => ({ value: String(school.id), label: school.name }))}
-                      triggerClassName="!h-10 !px-3 !text-sm !rounded-xl"
                     />
                   </div>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   <strong>Hanafi Asr</strong> is typically 45-90 minutes later than Standard (Shafi'i/Maliki/Hanbali). 
                   These are auto-detected based on your country but can be changed if your local mosque follows a different school.
                 </p>
@@ -927,34 +968,34 @@ export const TimelinePlanner: React.FC = () => {
                 setTimeout(() => setIsFormExpanded(false), 500);
               }}
               disabled={!hasLocation || loading}
-              className={`w-full py-3 px-6 font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              className={`w-full h-8 px-4 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 hasLocation && !loading
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                   : 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
               }`}
             >
-              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               {loading ? 'Fetching Prayer Times...' : 'Get Prayer Times'}
             </button>
 
             {/* Helper note about city lookup */}
-            <div className="mt-4 flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400">
-              <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div className="mt-3 flex items-start gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+              <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <p>
                 City can be any city or village name. If not found exactly, prayer times will default to a nearby major city.
               </p>
             </div>
 
             {error && (
-              <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl text-sm text-red-700 dark:text-red-400">
+              <div className="mt-3 p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg text-xs text-red-700 dark:text-red-400">
                 {error}
               </div>
             )}
 
             {/* Hijri Date Display (no coordinates - they're unreliable) */}
             {hijriDate && (
-              <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-center">
-                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+              <div className="mt-3 p-2.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-center">
+                <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
                   ☪️ {hijriDate}
                 </p>
               </div>
@@ -967,17 +1008,17 @@ export const TimelinePlanner: React.FC = () => {
       {hasPrayerTimes && (
         <>
           {/* Add Event Button */}
-          <div className="flex gap-3 mb-6">
+          <div className="flex gap-2 mb-4">
             <button
               onClick={() => setShowEventModal(true)}
-              className="flex-1 py-3 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+              className="flex-1 h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-3.5 h-3.5" />
               Add Event
             </button>
             <button
               onClick={() => setShowPresets(!showPresets)}
-              className="py-3 px-6 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all"
+              className="h-8 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition-all"
             >
               Quick Add
             </button>
@@ -985,18 +1026,18 @@ export const TimelinePlanner: React.FC = () => {
 
           {/* Presets Dropdown */}
           {showPresets && (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 mb-6">
-              <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-3">Common Wedding Events:</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-3 mb-4">
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Common Wedding Events:</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
                 {EVENT_PRESETS.map(preset => (
                   <button
                     key={preset.name}
                     onClick={() => handleQuickAdd(preset)}
-                    className="p-3 bg-slate-50 dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-xl text-left transition-all border border-transparent hover:border-emerald-300 dark:hover:border-emerald-700"
+                    className="p-2.5 bg-slate-50 dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg text-left transition-all border border-transparent hover:border-emerald-300 dark:hover:border-emerald-700"
                   >
-                    <span className="text-lg">{preset.icon}</span>
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-1">{preset.name}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-500">{preset.duration} min</p>
+                    <span className="text-sm">{preset.icon}</span>
+                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-0.5">{preset.name}</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-500">{preset.duration} min</p>
                   </button>
                 ))}
               </div>
@@ -1004,16 +1045,16 @@ export const TimelinePlanner: React.FC = () => {
           )}
 
           {/* Timeline */}
-          <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100 dark:border-slate-700">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-emerald-600" />
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-3 md:p-4 border border-slate-200 dark:border-slate-700">
+            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-emerald-600" />
               Your Wedding Timeline
             </h3>
 
             {sortedTimeline.length === 0 || timelineData.events.length === 0 ? (
-              <div className="text-center py-8">
-                <Clock className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
-                <p className="text-slate-500 dark:text-slate-400 mb-6">
+              <div className="text-center py-6">
+                <Clock className="w-10 h-10 mx-auto mb-3 text-slate-300 dark:text-slate-600" />
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
                   {prayerTimes.length > 0 
                     ? `Build your ${activeEvent?.name || 'wedding'} timeline`
                     : 'Add events to build your timeline'}
@@ -1021,37 +1062,37 @@ export const TimelinePlanner: React.FC = () => {
                 
                 {/* Template Loading Buttons */}
                 {prayerTimes.length > 0 && (
-                  <div className="max-w-md mx-auto">
-                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-3">
+                  <div className="max-w-sm mx-auto">
+                    <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide mb-2">
                       Start with a template:
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <button
                         onClick={() => loadTemplate('afternoonNikkah')}
-                        className="p-4 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border-2 border-emerald-200 dark:border-emerald-800 rounded-xl text-left transition-all group"
+                        className="p-3 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 rounded-lg text-left transition-all group"
                       >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xl">☀️</span>
-                          <span className="font-bold text-emerald-800 dark:text-emerald-300">Afternoon Nikkah</span>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-sm">☀️</span>
+                          <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Afternoon Nikkah</span>
                         </div>
-                        <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
                           2:00 PM start • Dhuhr/Asr prayers
                         </p>
                       </button>
                       <button
                         onClick={() => loadTemplate('eveningWalima')}
-                        className="p-4 bg-violet-50 dark:bg-violet-900/20 hover:bg-violet-100 dark:hover:bg-violet-900/40 border-2 border-violet-200 dark:border-violet-800 rounded-xl text-left transition-all group"
+                        className="p-3 bg-violet-50 dark:bg-violet-900/20 hover:bg-violet-100 dark:hover:bg-violet-900/40 border border-violet-200 dark:border-violet-800 rounded-lg text-left transition-all group"
                       >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xl">🌙</span>
-                          <span className="font-bold text-violet-800 dark:text-violet-300">Evening Walima</span>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-sm">🌙</span>
+                          <span className="text-xs font-bold text-violet-800 dark:text-violet-300">Evening Walima</span>
                         </div>
-                        <p className="text-xs text-violet-600 dark:text-violet-400">
+                        <p className="text-[11px] text-violet-600 dark:text-violet-400">
                           6:00 PM start • Maghrib/Isha prayers
                         </p>
                       </button>
                     </div>
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
                       Templates provide a starting point. Customize times after loading.
                     </p>
                   </div>
@@ -1093,41 +1134,41 @@ export const TimelinePlanner: React.FC = () => {
                       {/* Card */}
                       {item.type === 'fixed' ? (
                         // Prayer Time Card
-                        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-4">
+                        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl p-3">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="text-2xl">☪️</span>
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-lg">☪️</span>
                               <div>
-                                <p className="font-bold text-amber-800 dark:text-amber-300">{item.name}</p>
-                                <p className="text-sm text-amber-600 dark:text-amber-400">
+                                <p className="text-xs font-bold text-amber-800 dark:text-amber-300">{item.name}</p>
+                                <p className="text-[11px] text-amber-600 dark:text-amber-400">
                                   {item.name === 'Jummah' ? 'Friday Prayer (Congregation)' : 'Prayer Time'}
                                 </p>
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className="text-xl font-bold text-amber-700 dark:text-amber-300">
+                              <p className="text-sm font-bold text-amber-700 dark:text-amber-300">
                                 {formatTimeDisplay(item.time)}
                               </p>
-                              <p className="text-xs text-amber-500 dark:text-amber-500 font-medium">FIXED</p>
+                              <p className="text-[11px] text-amber-500 dark:text-amber-500 font-medium">FIXED</p>
                             </div>
                           </div>
                         </div>
                       ) : (
                         // Custom Event Card
-                        <div className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-2xl p-4">
+                        <div className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl p-3">
                           {/* Conflict Alert Banners - distinct style from event cards */}
                           {(item as any).conflictInfo?.length > 0 && (
                             (item as any).isPrayerEvent ? (
                               // Green success banner for prayer-related events
-                              <div className="border-l-4 border-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-r-lg px-3 py-2 mb-3">
-                                <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-sm font-medium">
+                              <div className="border-l-4 border-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-r-lg px-2.5 py-1.5 mb-2.5">
+                                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
                                   <span>✓</span>
                                   <span>Scheduled during prayer time</span>
                                 </div>
                               </div>
                             ) : (
                               // Warning banners based on severity
-                              <div className="space-y-2 mb-3">
+                              <div className="space-y-1.5 mb-2.5">
                                 {(item as any).conflictInfo.map((conflict: PrayerConflictInfo, idx: number) => {
                                   // Determine banner style based on severity
                                   const severityStyles = {
@@ -1148,15 +1189,15 @@ export const TimelinePlanner: React.FC = () => {
                                   const icon = severityIcons[conflict.severity] || severityIcons.warning;
                                   
                                   return (
-                                    <div key={conflict.prayer.name} className={`border-l-4 ${style} rounded-r-lg px-3 py-2`}>
-                                      <div className="flex items-start gap-2 text-sm">
+                                    <div key={conflict.prayer.name} className={`border-l-4 ${style} rounded-r-lg px-2.5 py-1.5`}>
+                                      <div className="flex items-start gap-1.5 text-xs">
                                         <span className="flex-shrink-0">{icon}</span>
                                         <div>
                                           <span className="font-medium block">
                                             Overlaps {conflict.prayer.name}
                                           </span>
                                           {conflict.warningMessage && (
-                                            <span className="text-xs opacity-90 block mt-0.5">
+                                            <span className="text-[11px] opacity-90 block mt-0.5">
                                               {conflict.warningMessage}
                                             </span>
                                           )}
@@ -1170,36 +1211,36 @@ export const TimelinePlanner: React.FC = () => {
                           )}
                           
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2.5">
                               {/* Event Icon */}
                               {(item as WeddingEvent).icon && (
-                                <span className="text-2xl">{(item as WeddingEvent).icon}</span>
+                                <span className="text-lg">{(item as WeddingEvent).icon}</span>
                               )}
                               <div>
-                                <p className="font-bold text-slate-800 dark:text-white">{(item as WeddingEvent).name}</p>
-                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                <p className="text-xs font-bold text-slate-800 dark:text-white">{(item as WeddingEvent).name}</p>
+                                <p className="text-[11px] text-slate-600 dark:text-slate-400">
                                   {formatTimeDisplay((item as WeddingEvent).startTime)} - {formatTimeDisplay((item as WeddingEvent).endTime)}
                                   {(item as any).crossesMidnight && (
-                                    <span className="ml-1 text-xs text-amber-600 dark:text-amber-400 font-medium">(+1 day)</span>
+                                    <span className="ml-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">(+1 day)</span>
                                   )}
                                 </p>
                                 {(item as WeddingEvent).description && (
-                                  <p className="text-sm text-slate-500 dark:text-slate-500 mt-1">{(item as WeddingEvent).description}</p>
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-500 mt-0.5">{(item as WeddingEvent).description}</p>
                                 )}
                               </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1.5">
                               <button
                                 onClick={() => handleEditEvent(item as WeddingEvent)}
-                                className="p-2 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-all"
+                                className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-all"
                               >
-                                <Edit className="w-4 h-4 text-slate-500" />
+                                <Edit className="w-3.5 h-3.5 text-slate-500" />
                               </button>
                               <button
                                 onClick={() => handleDeleteEvent((item as WeddingEvent).id)}
-                                className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all"
+                                className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all"
                               >
-                                <Trash className="w-4 h-4 text-red-500" />
+                                <Trash className="w-3.5 h-3.5 text-red-500" />
                               </button>
                             </div>
                           </div>
@@ -1209,12 +1250,12 @@ export const TimelinePlanner: React.FC = () => {
                     
                     {/* Smart Gap Button - shows when there's a 15+ min gap to next item */}
                     {gapInfo && (
-                      <div className="relative pl-12 md:pl-16 py-2">
+                      <div className="relative pl-12 md:pl-16 py-1.5">
                         <button
                           onClick={() => openModalWithStartTime(gapInfo.startTime, nextEventStartTime)}
-                          className="w-full py-2 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-xl text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-2 text-sm"
+                          className="w-full py-1.5 border border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs"
                         >
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-3.5 h-3.5" />
                           Add event here ({Math.floor(gapInfo.gap / 60) > 0 ? `${Math.floor(gapInfo.gap / 60)}h ` : ''}{gapInfo.gap % 60 > 0 ? `${gapInfo.gap % 60}m` : ''} gap)
                         </button>
                       </div>
@@ -1222,6 +1263,25 @@ export const TimelinePlanner: React.FC = () => {
                     </React.Fragment>
                     );
                   })}
+
+                  {/* Add event after last item */}
+                  {sortedTimeline.length > 0 && (() => {
+                    const lastItem = sortedTimeline[sortedTimeline.length - 1];
+                    const lastEndTime = lastItem.type === 'fixed'
+                      ? (lastItem as PrayerTime).time
+                      : (lastItem as WeddingEvent).endTime;
+                    return (
+                      <div className="relative pl-12 md:pl-16 py-1.5">
+                        <button
+                          onClick={() => openModalWithStartTime(lastEndTime)}
+                          className="w-full py-1.5 border border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add event after {lastItem.name}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -1231,12 +1291,12 @@ export const TimelinePlanner: React.FC = () => {
 
       {/* Empty State - No Prayer Times Yet */}
       {!hasPrayerTimes && !loading && (
-        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-12 border border-slate-100 dark:border-slate-700 text-center">
-          <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Clock className="w-8 h-8 text-emerald-600" />
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-8 border border-slate-200 dark:border-slate-700 text-center">
+          <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
+            <Clock className="w-5 h-5 text-emerald-600" />
           </div>
-          <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Set Your Wedding Date & Location</h3>
-          <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-1.5">Set Your Wedding Date & Location</h3>
+          <p className="text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto">
             Enter your wedding date and venue location above to fetch prayer times and start building your timeline.
           </p>
         </div>
@@ -1245,31 +1305,31 @@ export const TimelinePlanner: React.FC = () => {
       {/* Add/Edit Event Modal */}
       {showEventModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={closeEventModal}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="font-bold text-slate-800 dark:text-white text-lg">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 max-w-sm w-full shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-bold text-slate-800 dark:text-white text-sm">
                 {editingEvent ? 'Edit Event' : 'Add Event'}
               </h4>
               <button 
                 onClick={closeEventModal}
                 className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"
               >
-                <X className="w-5 h-5 text-slate-400" />
+                <X className="w-4 h-4 text-slate-400" />
               </button>
             </div>
 
             {/* Quick Add Chips (only when adding new event) */}
             {!editingEvent && (
-              <div className="mb-4">
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Quick Add:</p>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="mb-3">
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Quick Add:</p>
+                <div className="flex flex-wrap gap-1">
                   {EVENT_PRESETS.map(preset => (
                     <button
                       key={preset.name}
                       onClick={() => applyPresetToForm(preset)}
-                      className="px-2 py-1 text-xs bg-slate-100 dark:bg-slate-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-slate-600 dark:text-slate-300 rounded-lg transition-all flex items-center gap-1"
+                      className="px-2 py-1 text-[11px] bg-slate-100 dark:bg-slate-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-slate-600 dark:text-slate-300 rounded-md transition-all flex items-center gap-1"
                     >
-                      <span>{preset.icon}</span>
+                      <span className="text-xs">{preset.icon}</span>
                       <span>{preset.name.split(' ')[0]}</span>
                     </button>
                   ))}
@@ -1277,9 +1337,9 @@ export const TimelinePlanner: React.FC = () => {
               </div>
             )}
 
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                   Event Name *
                 </label>
                 <input
@@ -1287,52 +1347,52 @@ export const TimelinePlanner: React.FC = () => {
                   value={eventForm.name}
                   onChange={(e) => setEventForm(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="e.g., Nikkah Ceremony"
-                  className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white placeholder:text-slate-400 ${
+                  className={`w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 ${
                     formTouched && !eventForm.name 
                       ? 'border-red-400 dark:border-red-500' 
-                      : 'border-transparent focus:border-emerald-400'
+                      : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
                   }`}
                 />
                 {formTouched && !eventForm.name && (
-                  <p className="text-xs text-red-500 mt-1">Event name is required</p>
+                  <p className="text-[11px] text-red-500 mt-0.5">Event name is required</p>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                     Start Time *
                   </label>
                   <input
                     type="time"
                     value={eventForm.startTime}
                     onChange={(e) => setEventForm(prev => ({ ...prev, startTime: e.target.value }))}
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white ${
+                    className={`w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white ${
                       formTouched && !eventForm.startTime 
                         ? 'border-red-400 dark:border-red-500' 
-                        : 'border-transparent focus:border-emerald-400'
+                        : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
                     }`}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                     End Time *
                   </label>
                   <input
                     type="time"
                     value={eventForm.endTime}
                     onChange={(e) => setEventForm(prev => ({ ...prev, endTime: e.target.value }))}
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white ${
+                    className={`w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white ${
                       formTouched && !eventForm.endTime 
                         ? 'border-red-400 dark:border-red-500' 
-                        : 'border-transparent focus:border-emerald-400'
+                        : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
                     }`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                   Description (optional)
                 </label>
                 <textarea
@@ -1340,21 +1400,21 @@ export const TimelinePlanner: React.FC = () => {
                   onChange={(e) => setEventForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Any notes about this event..."
                   rows={2}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border-2 border-transparent focus:border-emerald-400 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white placeholder:text-slate-400 resize-none"
+                  className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 resize-none"
                 />
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-2 mt-4">
               <button
                 onClick={handleSaveEvent}
-                className="flex-1 py-3 px-6 font-bold rounded-xl transition-all bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="flex-1 h-8 px-3 text-xs font-bold rounded-lg transition-all bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 {editingEvent ? 'Save Changes' : 'Add Event'}
               </button>
               <button
                 onClick={closeEventModal}
-                className="py-3 px-6 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold rounded-xl transition-all"
+                className="h-8 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg transition-all"
               >
                 Cancel
               </button>
@@ -1362,6 +1422,16 @@ export const TimelinePlanner: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Shared Event Settings Modal */}
+      <EventSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        events={allEvents}
+        onToggleEvent={handleToggleEvent}
+        onAddCustomEvent={handleAddCustomEvent}
+        onDeleteCustomEvent={handleDeleteCustomEvent}
+        showSegregation={false}
+      />
     </div>
   );
 };
