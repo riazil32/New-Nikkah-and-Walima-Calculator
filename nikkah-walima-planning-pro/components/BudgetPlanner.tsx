@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Users, Calculator, ChevronDown, Edit, Check, X, Trash, RefreshCw } from './Icons';
+import { Users, Calculator, ChevronDown, Edit, Check, X, Trash, RefreshCw, AlertTriangle, CheckCircle } from './Icons';
 import { BUDGET_CATEGORIES, CURRENCIES, SECTION_LABELS, MAHR_TYPES } from '../constants';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { BudgetCategory, Payer, CategorySection, CategoryExpense, PaymentStatus, BudgetTemplate, MahrPaymentType } from '../types';
@@ -1675,42 +1675,42 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
 
       {/* Over Budget Warning - Sticky below header */}
       {isOverBudget && (
-        <div className="sticky top-[80px] z-40 -mx-4 mb-4">
-          {/* Mobile: Full gradient banner */}
-          <div className="md:hidden bg-gradient-to-r from-red-500 via-rose-500 to-red-600 text-white py-2 px-4 shadow-lg border-b-2 border-red-700">
+        <div className="sticky top-[80px] z-40 mb-4 -mx-4 md:-mx-1">
+          {/* Mobile banner - full width */}
+          <div className="md:hidden bg-red-950/90 backdrop-blur-md border-y border-red-800/50 py-2.5 px-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                  <span className="text-base">⚠️</span>
+                <div className="w-7 h-7 bg-red-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
                 </div>
                 <div>
-                  <p className="font-bold text-sm">Over Budget!</p>
-                  <p className="text-[11px] text-red-100">Reduce allocations to continue</p>
+                  <p className="font-bold text-xs text-red-300">Over Budget!</p>
+                  <p className="text-[11px] text-red-400/70">Reduce allocations to continue</p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-xl font-black">
+              <div className="text-right flex-shrink-0">
+                <p className="text-lg font-black text-red-300 leading-tight">
                   {Number.isInteger(totalPercentage) ? totalPercentage : totalPercentage.toFixed(1)}%
                 </p>
-                <p className="text-[11px] text-red-100">
+                <p className="text-[11px] text-red-400/70 leading-tight">
                   +{selectedCurrency.symbol}{Math.round(totalAllocated - budget).toLocaleString()} over
                 </p>
               </div>
             </div>
           </div>
-          {/* Desktop: Slimmer, more refined banner */}
-          <div className="hidden md:block bg-gradient-to-r from-red-500 to-rose-500 text-white py-2 px-6 shadow-lg rounded-b-xl">
+          {/* Desktop banner */}
+          <div className="hidden md:block bg-red-950/90 backdrop-blur-md border border-red-800/50 rounded-xl py-2.5 px-5 shadow-sm">
             <div className="flex items-center justify-between max-w-4xl mx-auto">
               <div className="flex items-center gap-2.5">
-                <span className="text-base">⚠️</span>
-                <p className="font-bold text-sm">Over Budget!</p>
-                <p className="text-xs text-red-100">Reduce allocations to continue</p>
+                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <p className="font-bold text-xs text-red-300">Over Budget!</p>
+                <p className="text-[11px] text-red-400/70">Reduce allocations to continue</p>
               </div>
               <div className="flex items-center gap-3">
-                <p className="text-base font-black">
+                <p className="text-sm font-black text-red-300">
                   {Number.isInteger(totalPercentage) ? totalPercentage : totalPercentage.toFixed(1)}%
                 </p>
-                <p className="text-xs font-semibold bg-white/20 px-2.5 py-0.5 rounded-full">
+                <p className="text-[11px] font-semibold bg-red-500/20 text-red-300 px-2.5 py-0.5 rounded-full">
                   +{selectedCurrency.symbol}{Math.round(totalAllocated - budget).toLocaleString()} over
                 </p>
               </div>
@@ -1751,7 +1751,10 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 flex items-center justify-center">
-                <span className="text-lg leading-none">{isOverBudget ? '⚠️' : '✅'}</span>
+                {isOverBudget 
+                  ? <AlertTriangle className="w-5 h-5 text-red-500 dark:text-red-400" />
+                  : <CheckCircle className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
+                }
               </div>
               <div>
                 <p className={`text-xs font-medium ${isOverBudget ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
@@ -1887,8 +1890,8 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 Payment Tracking
               </h3>
               {isOverBudgetTotal && (
-                <span className="text-xs bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 px-2 py-1 rounded-full font-bold">
-                  ⚠️ Over Budget
+                <span className="text-xs bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 px-2 py-1 rounded-full font-bold flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> Over Budget
                 </span>
               )}
             </div>
