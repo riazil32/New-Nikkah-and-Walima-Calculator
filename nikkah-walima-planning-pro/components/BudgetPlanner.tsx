@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Users, Calculator, ChevronDown, Edit, Check, X, Trash, RefreshCw } from './Icons';
 import { BUDGET_CATEGORIES, CURRENCIES, SECTION_LABELS, MAHR_TYPES } from '../constants';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { BudgetCategory, Payer, CategorySection, CategoryExpense, PaymentStatus, BudgetTemplate } from '../types';
+import { BudgetCategory, Payer, CategorySection, CategoryExpense, PaymentStatus, BudgetTemplate, MahrPaymentType } from '../types';
 
 // Budget templates in GBP (base currency) - will be converted for other currencies
 const BUDGET_TEMPLATES_GBP = [
@@ -185,6 +185,8 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
   const [selectedMahrPreset, setSelectedMahrPreset] = useLocalStorage<string | null>('mahr-selectedPreset', null);
   // Track the currency when preset was selected (to distinguish currency change vs price change)
   const [selectedMahrCurrency, setSelectedMahrCurrency] = useLocalStorage<string | null>('mahr-selectedCurrency', null);
+  // Mahr payment type: prompt (due at Nikkah) or deferred (due later)
+  const [mahrPaymentType, setMahrPaymentType] = useLocalStorage<MahrPaymentType>('mahr-paymentType', 'prompt');
 
   // Convert silver price from GBP to selected currency using exchange rates
   const silverPricePerGram = useMemo(() => {
@@ -285,7 +287,9 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
   const totalAllocated = (budget * totalPercentage) / 100;
   
   // Grand total including Mahr (for "Total Cash Required")
-  const grandTotalRequired = Math.round(totalAllocated + mahrActualCost);
+  // Deferred Mahr is excluded from immediate cash requirements
+  const mahrPromptAmount = mahrPaymentType === 'prompt' ? mahrActualCost : 0;
+  const grandTotalRequired = Math.round(totalAllocated + mahrPromptAmount);
 
   // Validation
   const budgetError = useMemo(() => {
@@ -329,6 +333,9 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
   const confirmResetDefaults = () => {
     setCategoryData(getDefaultCategoryData());
     setCustomCategories([]);
+    setSelectedMahrPreset(null);
+    setSelectedMahrCurrency(null);
+    setMahrPaymentType('prompt');
     setShowResetConfirm(false);
   };
 
@@ -1185,7 +1192,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 {!isExpanded && (
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {totalBill > 0 ? (
-                      <>Amount: {selectedCurrency.symbol}{totalBill.toLocaleString()} • Paid: {selectedCurrency.symbol}{amountPaid.toLocaleString()}</>
+                      <>Amount: {selectedCurrency.symbol}{totalBill.toLocaleString()} • {mahrPaymentType === 'deferred' ? 'Deferred' : `Paid: ${selectedCurrency.symbol}${amountPaid.toLocaleString()}`}</>
                     ) : amount > 0 ? (
                       <>Allocated: {selectedCurrency.symbol}{amount.toLocaleString()}</>
                     ) : (
@@ -1215,15 +1222,15 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                   <button
                     onClick={(e) => { e.stopPropagation(); fetchSilverPrice(); }}
                     disabled={isFetchingSilver}
-                    className="text-xs font-medium bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                    className="text-[10px] font-semibold bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-md flex items-center gap-1 transition-colors disabled:opacity-50"
                   >
-                    <span className={isFetchingSilver ? 'animate-spin' : ''}>🔄</span>
+                    <RefreshCw className={`w-3 h-3 ${isFetchingSilver ? 'animate-spin' : ''}`} />
                     {isFetchingSilver ? 'Updating...' : 'Update Prices'}
                   </button>
                 </div>
                 
                 {silverLastUpdated && (
-                  <p className={`text-xs mb-2 -mt-1 ${silverFetchError ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                  <p className={`text-[10px] mb-2 -mt-1 ${silverFetchError ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
                     {silverFetchError ? `⚠️ ${silverFetchError}` : `Last updated: ${silverLastUpdated}`}
                     {selectedCurrency.code !== 'GBP' && !silverFetchError && (
                       <span className="text-slate-400 dark:text-slate-500"> • Converted from GBP</span>
@@ -1293,15 +1300,15 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 
                 {/* Price Change Warning */}
                 {priceHasChanged && selectedPresetData && (
-                  <div className={`mt-3 p-3 rounded-lg border ${priceDifference > 0 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700' : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700'}`}>
-                    <p className={`text-xs font-medium ${priceDifference > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                  <div className={`mt-2.5 p-2.5 rounded-lg border ${priceDifference > 0 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700' : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700'}`}>
+                    <p className={`text-[11px] font-medium leading-snug ${priceDifference > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
                       ⚠️ Silver price has {priceDifference > 0 ? 'increased' : 'decreased'}! 
                       Your selected {selectedPresetData.name} Mahr is now worth {selectedCurrency.symbol}{selectedPresetData.value.toLocaleString()} 
                       ({priceDifference > 0 ? '+' : ''}{selectedCurrency.symbol}{priceDifference.toLocaleString()})
                     </p>
                     <button
                       onClick={(e) => { e.stopPropagation(); selectMahrType(selectedPresetData.value, selectedPresetData.id); }}
-                      className={`mt-2 text-xs font-medium px-3 py-1.5 rounded ${priceDifference > 0 ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
+                      className={`mt-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-md ${priceDifference > 0 ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
                     >
                       Update to {selectedCurrency.symbol}{selectedPresetData.value.toLocaleString()}
                     </button>
@@ -1373,6 +1380,40 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                       className="w-full pl-6 pr-2 h-8 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                     />
                   </div>
+                </div>
+
+                {/* Payment Type - Prompt vs Deferred */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                    Payment Type
+                  </label>
+                  <div className="flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setMahrPaymentType('prompt'); }}
+                      className={`flex-1 h-8 text-xs font-semibold transition-colors ${
+                        mahrPaymentType === 'prompt'
+                          ? 'bg-cyan-600 text-white'
+                          : 'bg-white dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      Prompt <span className="hidden sm:inline text-[10px] opacity-75">(Mu'ajjal)</span>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setMahrPaymentType('deferred'); }}
+                      className={`flex-1 h-8 text-xs font-semibold transition-colors border-l border-slate-300 dark:border-slate-600 ${
+                        mahrPaymentType === 'deferred'
+                          ? 'bg-slate-600 dark:bg-slate-500 text-white'
+                          : 'bg-white dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      Deferred <span className="hidden sm:inline text-[10px] opacity-75">(Mu'wajjal)</span>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                    {mahrPaymentType === 'prompt' 
+                      ? 'Paid at time of Nikkah — included in Total Cash Required' 
+                      : 'Payable later (upon request, divorce, or death) — excluded from immediate budget'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -1779,9 +1820,12 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
             <div className="flex justify-between items-center text-xs">
               <span className="text-cyan-600 dark:text-cyan-400 flex items-center gap-1">
                 <span>☪️</span> Mahr
+                {mahrPaymentType === 'deferred' && (
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">(deferred)</span>
+                )}
               </span>
-              <span className="font-medium text-cyan-600 dark:text-cyan-400">
-                + {selectedCurrency.symbol}{mahrActualCost.toLocaleString()}
+              <span className={`font-medium ${mahrPaymentType === 'deferred' ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-cyan-600 dark:text-cyan-400'}`}>
+                {mahrPaymentType === 'prompt' ? '+ ' : ''}{selectedCurrency.symbol}{mahrActualCost.toLocaleString()}
               </span>
             </div>
           )}
@@ -1794,10 +1838,12 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
               </span>
             </div>
           </div>
-          {/* Guidance text - only show if Mahr is set */}
+          {/* Guidance text */}
           {mahrActualCost > 0 && (
             <p className="text-[12px] text-slate-400 dark:text-slate-400 mt-3 italic text-center">
-              Mahr is tracked separately as a religious obligation, not a wedding expense.
+              {mahrPaymentType === 'deferred'
+                ? 'Deferred Mahr is excluded from Total Cash Required — payable at a later date.'
+                : 'Mahr is tracked separately as a religious obligation, not a wedding expense.'}
             </p>
           )}
         </div>
