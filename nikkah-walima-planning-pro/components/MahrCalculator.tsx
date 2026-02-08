@@ -292,10 +292,10 @@ export const MahrCalculator: React.FC = () => {
         {/* Sources */}
         {sources.length > 0 && (
           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Sources:</p>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Sources:</p>
             <div className="flex flex-wrap gap-1.5">
               {sources.map((s, idx) => (
-                <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[11px] bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                   {s.title}
                 </a>
               ))}

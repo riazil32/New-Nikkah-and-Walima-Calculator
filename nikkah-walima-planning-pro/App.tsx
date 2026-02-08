@@ -137,7 +137,7 @@ const App: React.FC = () => {
             }`}
           >
             <Calculator className="w-5 h-5" />
-            <span className="text-[10px]">Budget</span>
+            <span className="text-[11px]">Budget</span>
           </button>
           <button
             onClick={() => setActiveTab('mahr')}
@@ -146,7 +146,7 @@ const App: React.FC = () => {
             }`}
           >
             <Heart className="w-5 h-5" />
-            <span className="text-[10px]">Mahr</span>
+            <span className="text-[11px]">Mahr</span>
           </button>
           <button
             onClick={() => setActiveTab('contract')}
@@ -155,7 +155,7 @@ const App: React.FC = () => {
             }`}
           >
             <Scroll className="w-5 h-5" />
-            <span className="text-[10px]">Certificate</span>
+            <span className="text-[11px]">Certificate</span>
           </button>
           <button
             onClick={() => setActiveTab('timeline')}
@@ -164,7 +164,7 @@ const App: React.FC = () => {
             }`}
           >
             <Clock className="w-5 h-5" />
-            <span className="text-[10px]">Timeline</span>
+            <span className="text-[11px]">Timeline</span>
           </button>
           <button
             onClick={() => setActiveTab('duas')}
@@ -173,7 +173,7 @@ const App: React.FC = () => {
             }`}
           >
             <BookOpen className="w-5 h-5" />
-            <span className="text-[10px]">Duas</span>
+            <span className="text-[11px]">Duas</span>
           </button>
           <button
             onClick={() => setActiveTab('guests')}
@@ -182,7 +182,7 @@ const App: React.FC = () => {
             }`}
           >
             <Users className="w-5 h-5" />
-            <span className="text-[10px]">Guests</span>
+            <span className="text-[11px]">Guests</span>
           </button>
         </div>
       </div>
