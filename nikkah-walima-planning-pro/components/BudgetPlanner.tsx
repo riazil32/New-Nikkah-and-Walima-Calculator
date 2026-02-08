@@ -152,7 +152,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
           if (el) {
             // Small delay to let the collapse/expand animations settle
             setTimeout(() => {
-              el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 50);
           }
         });
@@ -672,7 +672,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
       : 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600';
     
     return (
-      <div key={cat.key} data-card-key={cat.key} className={`rounded-xl ${cardBgClass} border border-l-4 ${getCardBorderStyle()} relative group transition-all`}>
+      <div key={cat.key} data-card-key={cat.key} className={`rounded-xl ${cardBgClass} border border-l-4 ${getCardBorderStyle()} relative group transition-all scroll-mt-[130px]`}>
         {/* COLLAPSED HEADER - Always visible, clickable to expand */}
         <button
           onClick={() => toggleCard(cat.key)}
@@ -1192,7 +1192,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
     return (
       <div className="mb-4">
         {/* Mahr Card - Standalone at top */}
-        <div data-card-key="mahr" className="rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-700 border-l-4 border-l-cyan-500 dark:border-l-cyan-400">
+        <div data-card-key="mahr" className="rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-700 border-l-4 border-l-cyan-500 dark:border-l-cyan-400 scroll-mt-[130px]">
           {/* Collapsed Header */}
           <button
             onClick={() => toggleCard('mahr')}
