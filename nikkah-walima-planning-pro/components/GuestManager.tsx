@@ -1962,21 +1962,21 @@ const GuestRow: React.FC<GuestRowProps> = ({
     return (
       <div className="p-3 sm:p-4 bg-blue-50/50 dark:bg-blue-900/10 border-l-2 border-blue-400">
         <div className="space-y-3">
-          {/* Name + Role */}
-          <div className="flex gap-3">
-            <div className="flex-1 min-w-0">
+          {/* Row 1: Name + Role (2-col) */}
+          <div className="grid grid-cols-2 gap-x-6">
+            <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Name <span className="text-red-400">*</span></p>
               <input type="text" value={editForm.name}
                 onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="Guest name..." autoFocus
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-blue-400 rounded-lg outline-none font-medium text-sm text-slate-800 dark:text-white placeholder:text-slate-400 transition-all"
+                className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-blue-400 rounded-lg outline-none font-medium text-sm text-slate-800 dark:text-white placeholder:text-slate-400 transition-all"
               />
             </div>
-            <div className="w-36 sm:w-44">
+            <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Role</p>
               <select value={editForm.role}
                 onChange={(e) => setEditForm(prev => ({ ...prev, role: e.target.value as GuestRole }))}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg outline-none font-medium text-slate-800 dark:text-white text-sm appearance-none"
+                className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg outline-none font-medium text-slate-800 dark:text-white text-sm appearance-none"
                 style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.25em 1.25em', paddingRight: '2rem' }}>
                 {GUEST_ROLES.map(role => (
                   <option key={role.value} value={role.value}>{role.icon} {role.label}</option>
@@ -1985,14 +1985,14 @@ const GuestRow: React.FC<GuestRowProps> = ({
             </div>
           </div>
 
-          {/* Side, Gender, Type - toggle buttons */}
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+          {/* Row 2: Side + Gender + Type + Table (2-col mobile, 4-col desktop) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Side</p>
-              <div className="inline-flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
+              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
                 {(['groom', 'bride', 'joint'] as const).map(side => (
                   <button key={side} onClick={() => setEditForm(prev => ({ ...prev, side }))}
-                    className={`px-3 py-2 text-xs font-semibold transition-colors ${
+                    className={`flex-1 h-9 text-xs font-semibold transition-colors ${
                       editForm.side === side
                         ? side === 'groom' ? 'bg-teal-500 text-white' : side === 'bride' ? 'bg-rose-500 text-white' : 'bg-violet-500 text-white'
                         : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400'
@@ -2004,10 +2004,10 @@ const GuestRow: React.FC<GuestRowProps> = ({
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Gender</p>
-              <div className="inline-flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
+              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
                 {(['male', 'female'] as const).map(gender => (
                   <button key={gender} onClick={() => setEditForm(prev => ({ ...prev, gender }))}
-                    className={`px-3 py-2 text-xs font-semibold transition-colors ${
+                    className={`flex-1 h-9 text-xs font-semibold transition-colors ${
                       editForm.gender === gender
                         ? gender === 'male' ? 'bg-blue-500 text-white' : 'bg-pink-500 text-white'
                         : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400'
@@ -2019,10 +2019,10 @@ const GuestRow: React.FC<GuestRowProps> = ({
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Type</p>
-              <div className="inline-flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
+              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
                 {(['adult', 'child'] as const).map(type => (
                   <button key={type} onClick={() => setEditForm(prev => ({ ...prev, type }))}
-                    className={`px-3 py-2 text-xs font-semibold transition-colors ${
+                    className={`flex-1 h-9 text-xs font-semibold transition-colors ${
                       editForm.type === type
                         ? type === 'adult' ? 'bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-800' : 'bg-amber-500 text-white'
                         : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400'
@@ -2032,16 +2032,23 @@ const GuestRow: React.FC<GuestRowProps> = ({
                 ))}
               </div>
             </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Table #</p>
+              <input type="text" inputMode="numeric" pattern="[0-9]*" value={editForm.tableNumber || ''} placeholder="—"
+                onChange={(e) => setEditForm(prev => ({ ...prev, tableNumber: e.target.value.replace(/[^0-9]/g, '') || undefined }))}
+                className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 text-center placeholder:text-slate-400"
+              />
+            </div>
           </div>
 
-          {/* RSVP + Table */}
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-            <div>
+          {/* Row 3: RSVP + Phone + Notes (RSVP full on mobile then Phone|Notes; 3-col on desktop) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
+            <div className="col-span-2 sm:col-span-1">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">RSVP</p>
-              <div className="inline-flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
+              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
                 {(['pending', 'confirmed', 'declined'] as const).map(status => (
                   <button key={status} onClick={() => setEditForm(prev => ({ ...prev, rsvpStatus: status }))}
-                    className={`px-3 py-2 text-xs font-semibold transition-colors ${
+                    className={`flex-1 h-9 text-xs font-semibold transition-colors ${
                       editForm.rsvpStatus === status
                         ? status === 'confirmed' ? 'bg-emerald-500 text-white' : status === 'declined' ? 'bg-red-500 text-white' : 'bg-slate-600 text-white'
                         : 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400'
@@ -2051,29 +2058,18 @@ const GuestRow: React.FC<GuestRowProps> = ({
                 ))}
               </div>
             </div>
-            <div className="w-20">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Table #</p>
-              <input type="text" inputMode="numeric" pattern="[0-9]*" value={editForm.tableNumber || ''} placeholder="—"
-                onChange={(e) => setEditForm(prev => ({ ...prev, tableNumber: e.target.value.replace(/[^0-9]/g, '') || undefined }))}
-                className="w-full px-2 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 text-center placeholder:text-slate-400"
-              />
-            </div>
-          </div>
-
-          {/* Phone + Notes */}
-          <div className="flex gap-3">
-            <div className="flex-1">
+            <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Phone</p>
               <input type="tel" value={editForm.phone || ''} placeholder="Optional..."
                 onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value || undefined }))}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 placeholder:text-slate-400"
+                className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 placeholder:text-slate-400"
               />
             </div>
-            <div className="flex-1">
+            <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Notes</p>
               <input type="text" value={editForm.notes || ''} placeholder="Optional..."
                 onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value || undefined }))}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 placeholder:text-slate-400"
+                className="w-full h-9 px-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 placeholder:text-slate-400"
               />
             </div>
           </div>
