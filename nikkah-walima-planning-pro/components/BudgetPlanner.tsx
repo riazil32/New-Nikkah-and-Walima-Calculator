@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Users, Calculator, ChevronDown, Edit, Check, X, Trash, RefreshCw } from './Icons';
 import { BUDGET_CATEGORIES, CURRENCIES, SECTION_LABELS, MAHR_TYPES } from '../constants';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -140,6 +140,26 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
   
   // Track which category card is expanded (for accordion behavior)
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
+
+  // Toggle a card and scroll it into view (compensates for accordion collapse above)
+  const toggleCard = useCallback((cardKey: string) => {
+    setExpandedCard(prev => {
+      const newValue = prev === cardKey ? null : cardKey;
+      if (newValue) {
+        // After DOM updates, scroll the newly expanded card into view
+        requestAnimationFrame(() => {
+          const el = document.querySelector(`[data-card-key="${newValue}"]`);
+          if (el) {
+            // Small delay to let the collapse/expand animations settle
+            setTimeout(() => {
+              el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 50);
+          }
+        });
+      }
+      return newValue;
+    });
+  }, []);
   
   // Custom category form state - tracks which section we're adding to (null = not adding)
   const [addingToSection, setAddingToSection] = useState<CategorySection | null>(null);
@@ -652,10 +672,10 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
       : 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600';
     
     return (
-      <div key={cat.key} className={`rounded-xl ${cardBgClass} border border-l-4 ${getCardBorderStyle()} relative group transition-all`}>
+      <div key={cat.key} data-card-key={cat.key} className={`rounded-xl ${cardBgClass} border border-l-4 ${getCardBorderStyle()} relative group transition-all`}>
         {/* COLLAPSED HEADER - Always visible, clickable to expand */}
         <button
-          onClick={() => setExpandedCard(isExpanded ? null : cat.key)}
+          onClick={() => toggleCard(cat.key)}
           className="w-full px-3 py-2.5 text-left"
         >
           {/* Main content with icon column for alignment */}
@@ -1172,10 +1192,10 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
     return (
       <div className="mb-4">
         {/* Mahr Card - Standalone at top */}
-        <div className="rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-700 border-l-4 border-l-cyan-500 dark:border-l-cyan-400">
+        <div data-card-key="mahr" className="rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-700 border-l-4 border-l-cyan-500 dark:border-l-cyan-400">
           {/* Collapsed Header */}
           <button
-            onClick={() => setExpandedCard(isExpanded ? null : 'mahr')}
+            onClick={() => toggleCard('mahr')}
             className="w-full px-3 py-2.5 text-left"
           >
             <div className="flex items-start gap-2">
