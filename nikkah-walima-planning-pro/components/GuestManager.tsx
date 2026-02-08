@@ -12,6 +12,7 @@ import {
   GuestManagerData 
 } from '../types';
 import { Users, Plus, Trash, Edit, X, Check, ChevronDown } from './Icons';
+import { CustomSelect } from './CustomSelect';
 
 // ============================================================
 // CONSTANTS
@@ -1213,16 +1214,11 @@ export const GuestManager: React.FC = () => {
               </div>
               <div>
                 <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Role</p>
-                <select
+                <CustomSelect
                   value={individualForm.role}
-                  onChange={(e) => setIndividualForm(prev => ({ ...prev, role: e.target.value as GuestRole }))}
-                  className="w-full h-8 px-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg outline-none font-medium text-slate-800 dark:text-white text-xs appearance-none"
-                  style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.25em 1.25em', paddingRight: '2rem' }}
-                >
-                  {GUEST_ROLES.map(role => (
-                    <option key={role.value} value={role.value}>{role.icon} {role.label}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setIndividualForm(prev => ({ ...prev, role: val as GuestRole }))}
+                  options={GUEST_ROLES.map(role => ({ value: role.value, label: `${role.icon} ${role.label}` }))}
+                />
               </div>
             </div>
 
@@ -1465,14 +1461,12 @@ export const GuestManager: React.FC = () => {
                         placeholder={index === 0 ? "e.g., Mr. Khan" : index === 1 ? "e.g., Mrs. Khan" : `Member ${index + 1}`}
                         className="h-8 px-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-md outline-none text-xs font-medium text-slate-800 dark:text-white placeholder:text-slate-400 focus:border-blue-400"
                       />
-                      <select value={member.role}
-                        onChange={(e) => updateFamilyMember(index, 'role', e.target.value)}
-                        className="h-8 px-1.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-md outline-none text-[11px] font-medium text-slate-800 dark:text-white appearance-none pr-7"
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.35rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.25em 1.25em' }}>
-                        {GUEST_ROLES.map(role => (
-                          <option key={role.value} value={role.value}>{role.icon} {role.shortLabel}</option>
-                        ))}
-                      </select>
+                      <CustomSelect
+                        value={member.role}
+                        onChange={(val) => updateFamilyMember(index, 'role', val)}
+                        options={GUEST_ROLES.map(role => ({ value: role.value, label: `${role.icon} ${role.shortLabel}` }))}
+                        triggerClassName="!h-8 !px-1.5 !text-[11px] !rounded-md bg-white dark:bg-slate-900/50"
+                      />
                       <div className="flex rounded-md overflow-hidden border border-slate-200 dark:border-slate-600">
                         {(['male', 'female'] as const).map(gender => (
                           <button key={gender} onClick={() => updateFamilyMember(index, 'gender', gender)}
@@ -1514,14 +1508,13 @@ export const GuestManager: React.FC = () => {
                         placeholder={index === 0 ? "e.g., Mr. Khan" : index === 1 ? "e.g., Mrs. Khan" : `Member ${index + 1}`}
                         className="flex-1 min-w-0 h-8 px-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-md outline-none text-xs font-medium text-slate-800 dark:text-white placeholder:text-slate-400 focus:border-blue-400"
                       />
-                      <select value={member.role}
-                        onChange={(e) => updateFamilyMember(index, 'role', e.target.value)}
-                        className="w-32 h-8 px-1.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-md outline-none text-[11px] font-medium text-slate-800 dark:text-white flex-shrink-0 appearance-none"
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.35rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.25em 1.25em', paddingRight: '1.6rem' }}>
-                        {GUEST_ROLES.map(role => (
-                          <option key={role.value} value={role.value}>{role.icon} {role.shortLabel}</option>
-                        ))}
-                      </select>
+                      <CustomSelect
+                        value={member.role}
+                        onChange={(val) => updateFamilyMember(index, 'role', val)}
+                        options={GUEST_ROLES.map(role => ({ value: role.value, label: `${role.icon} ${role.shortLabel}` }))}
+                        className="w-32 flex-shrink-0"
+                        triggerClassName="!h-8 !px-1.5 !text-[11px] !rounded-md bg-white dark:bg-slate-900/50"
+                      />
                       <div className="inline-flex h-8 rounded-md overflow-hidden border border-slate-200 dark:border-slate-600">
                         {(['male', 'female'] as const).map(gender => (
                           <button key={gender} onClick={() => updateFamilyMember(index, 'gender', gender)}
@@ -1811,12 +1804,13 @@ export const GuestManager: React.FC = () => {
                   </div>
                   {/* Add custom event */}
                   <div className="flex items-center gap-1.5 mt-2.5">
-                    <select value={newCustomEventIcon} onChange={(e) => setNewCustomEventIcon(e.target.value)}
-                      className="w-11 h-8 px-1 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-md text-center text-sm outline-none text-slate-800 dark:text-white">
-                      {['🎉', '🎊', '💐', '🎶', '🎭', '🌙', '☪️', '🕌', '🎈', '🍰', '💒', '🚗'].map(icon => (
-                        <option key={icon} value={icon}>{icon}</option>
-                      ))}
-                    </select>
+                    <CustomSelect
+                      value={newCustomEventIcon}
+                      onChange={(val) => setNewCustomEventIcon(val)}
+                      options={['🎉', '🎊', '💐', '🎶', '🎭', '🌙', '☪️', '🕌', '🎈', '🍰', '💒', '🚗'].map(icon => ({ value: icon, label: icon }))}
+                      className="w-12 flex-shrink-0"
+                      triggerClassName="!h-8 !px-1 !pr-5 !text-sm text-center !rounded-md"
+                    />
                     <input type="text" value={newCustomEventName} onChange={(e) => setNewCustomEventName(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomEvent(); }}
                       placeholder="Event name..."
@@ -2084,14 +2078,11 @@ const GuestRow: React.FC<GuestRowProps> = ({
             </div>
             <div>
               <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Role</p>
-              <select value={editForm.role}
-                onChange={(e) => setEditForm(prev => ({ ...prev, role: e.target.value as GuestRole }))}
-                className="w-full h-8 px-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg outline-none font-medium text-slate-800 dark:text-white text-xs appearance-none"
-                style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.25em 1.25em', paddingRight: '2rem' }}>
-                {GUEST_ROLES.map(role => (
-                  <option key={role.value} value={role.value}>{role.icon} {role.label}</option>
-                ))}
-              </select>
+              <CustomSelect
+                value={editForm.role}
+                onChange={(val) => setEditForm(prev => ({ ...prev, role: val as GuestRole }))}
+                options={GUEST_ROLES.map(role => ({ value: role.value, label: `${role.icon} ${role.label}` }))}
+              />
             </div>
           </div>
 

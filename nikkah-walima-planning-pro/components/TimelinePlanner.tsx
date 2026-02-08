@@ -16,6 +16,7 @@ import {
 import { Clock, Plus, Trash, Edit, AlertTriangle, MapPin, RefreshCw, X, Info, ChevronDown } from './Icons';
 import { Combobox } from './Combobox';
 import { COUNTRIES, CALCULATION_METHODS, ASR_SCHOOLS, getAutoCalculationMethod, getAutoAsrSchool } from '../constants';
+import { CustomSelect } from './CustomSelect';
 
 // Default wedding events (fallback if guest manager hasn't been configured)
 const DEFAULT_WEDDING_EVENTS: WeddingEventConfig[] = [
@@ -893,33 +894,23 @@ export const TimelinePlanner: React.FC = () => {
                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                       Calculation Method
                     </label>
-                    <select
-                      value={timelineData.method}
-                      onChange={(e) => updateField('method', Number(e.target.value))}
-                      className="w-full px-4 py-3 bg-white dark:bg-slate-600 border-2 border-transparent focus:border-emerald-400 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white"
-                    >
-                      {CALCULATION_METHODS.map(method => (
-                        <option key={method.id} value={method.id}>
-                          {method.shortName} - {method.name}
-                        </option>
-                      ))}
-                    </select>
+                    <CustomSelect
+                      value={String(timelineData.method)}
+                      onChange={(val) => updateField('method', Number(val))}
+                      options={CALCULATION_METHODS.map(method => ({ value: String(method.id), label: `${method.shortName} - ${method.name}` }))}
+                      triggerClassName="!h-10 !px-3 !text-sm !rounded-xl"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                       Asr Calculation (Madhab)
                     </label>
-                    <select
-                      value={timelineData.school}
-                      onChange={(e) => updateField('school', Number(e.target.value))}
-                      className="w-full px-4 py-3 bg-white dark:bg-slate-600 border-2 border-transparent focus:border-emerald-400 rounded-xl transition-all outline-none font-medium text-slate-800 dark:text-white"
-                    >
-                      {ASR_SCHOOLS.map(school => (
-                        <option key={school.id} value={school.id}>
-                          {school.name}
-                        </option>
-                      ))}
-                    </select>
+                    <CustomSelect
+                      value={String(timelineData.school)}
+                      onChange={(val) => updateField('school', Number(val))}
+                      options={ASR_SCHOOLS.map(school => ({ value: String(school.id), label: school.name }))}
+                      triggerClassName="!h-10 !px-3 !text-sm !rounded-xl"
+                    />
                   </div>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">

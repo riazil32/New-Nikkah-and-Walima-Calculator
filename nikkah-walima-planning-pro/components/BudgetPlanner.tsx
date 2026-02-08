@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Users, Calculator, ChevronDown, Edit, Check, X, Trash, RefreshCw, AlertTriangle, CheckCircle } from './Icons';
+import { CustomSelect } from './CustomSelect';
 import { BUDGET_CATEGORIES, CURRENCIES, SECTION_LABELS, MAHR_TYPES } from '../constants';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { BudgetCategory, Payer, CategorySection, CategoryExpense, PaymentStatus, BudgetTemplate, MahrPaymentType } from '../types';
@@ -1591,22 +1592,16 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
 
       {/* Budget & Guest Input - Compact Header */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-3 md:p-4 mb-4 border border-slate-100 dark:border-slate-700">
-        {/* Row 1: Currency (full width on mobile) */}
-        <div className="mb-2">
-          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Currency</label>
-          <select
-            value={currencyCode}
-            onChange={(e) => setCurrencyCode(e.target.value)}
-            className="w-full h-8 px-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white"
-          >
-            {CURRENCIES.map(c => (
-              <option key={c.code} value={c.code}>{c.symbol} {c.code} - {c.name}</option>
-            ))}
-          </select>
-        </div>
-        
-        {/* Row 2: Budget & Guests (side by side) */}
-        <div className="grid grid-cols-2 gap-3 mb-2">
+        {/* Currency + Budget + Guests — single row on desktop, Currency full-width on mobile with Budget+Guests side by side */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 items-end mb-2">
+          <div className="col-span-2 md:col-span-1">
+            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Currency</label>
+            <CustomSelect
+              value={currencyCode}
+              onChange={(val) => setCurrencyCode(val)}
+              options={CURRENCIES.map(c => ({ value: c.code, label: `${c.symbol} ${c.code} - ${c.name}` }))}
+            />
+          </div>
           <div>
             <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Total Budget</label>
             <div className="relative">
