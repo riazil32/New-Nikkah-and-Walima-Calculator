@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Users, Calculator, ChevronDown, Edit, Check, X, Trash } from './Icons';
+import { Users, Calculator, ChevronDown, Edit, Check, X, Trash, RefreshCw } from './Icons';
 import { BUDGET_CATEGORIES, CURRENCIES, SECTION_LABELS, MAHR_TYPES } from '../constants';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { BudgetCategory, Payer, CategorySection, CategoryExpense, PaymentStatus, BudgetTemplate } from '../types';
@@ -163,6 +163,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
   // Track which cards have Payment Tracking expanded (by category key)
   // Smart default: expanded if has data, collapsed if empty
   const [expandedPaymentTracking, setExpandedPaymentTracking] = useState<Record<string, boolean>>({});
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   
   // One-time tooltip for payer badge (mobile only)
   // Stays visible until user taps the badge to learn the feature
@@ -322,8 +323,13 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
 
   // Reset to defaults
   const handleResetDefaults = () => {
+    setShowResetConfirm(true);
+  };
+
+  const confirmResetDefaults = () => {
     setCategoryData(getDefaultCategoryData());
     setCustomCategories([]);
+    setShowResetConfirm(false);
   };
 
   // Add custom category to a specific section
@@ -643,12 +649,12 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         {/* COLLAPSED HEADER - Always visible, clickable to expand */}
         <button
           onClick={() => setExpandedCard(isExpanded ? null : cat.key)}
-          className="w-full p-3 text-left"
+          className="w-full px-3 py-2.5 text-left"
         >
           {/* Main content with icon column for alignment */}
           <div className="flex items-start gap-2">
             {/* Icon column - fixed width for alignment */}
-            <span className="text-lg flex-shrink-0 w-6 text-center">{cat.icon}</span>
+            <span className="text-base flex-shrink-0 w-5 text-center">{cat.icon}</span>
             
             {/* Content column */}
             <div className="flex-1 min-w-0">
@@ -666,7 +672,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                           if (e.key === 'Enter') handleRenameCustomCategory(cat.key);
                           if (e.key === 'Escape') { setEditingCustomCategory(null); setEditCategoryName(''); }
                         }}
-                        className="flex-1 px-2 py-1 text-sm font-semibold bg-white dark:bg-slate-800 border-2 border-emerald-500 rounded-md focus:outline-none text-slate-700 dark:text-white"
+                        className="flex-1 px-2 h-7 text-xs font-semibold bg-white dark:bg-slate-800 border-2 border-emerald-500 rounded-md focus:outline-none text-slate-700 dark:text-white"
                         autoFocus
                         onClick={(e) => e.stopPropagation()}
                       />
@@ -688,7 +694,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                     </div>
                   ) : (
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm whitespace-normal break-words">{cat.name}</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-200 text-xs whitespace-normal break-words">{cat.name}</span>
                       {isCustom && (
                         <span className="text-[10px] bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400 px-1 py-0.5 rounded uppercase font-bold">Custom</span>
                       )}
@@ -759,7 +765,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                     </>
                   )}
                   {percentage > 0 && editingCustomCategory !== cat.key && (
-                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 ml-1">
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 ml-1">
                       {Number.isInteger(percentage) ? percentage : percentage.toFixed(1)}%
                     </span>
                   )}
@@ -814,12 +820,12 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         
         {/* EXPANDED CONTENT */}
         {isExpanded && (
-          <div className="px-3 pb-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
+          <div className="px-3 pb-3 space-y-2 animate-in slide-in-from-top-2 duration-200">
             {/* Combined Row: Who pays? + Budget Allocation */}
             <div className="flex md:flex-wrap items-start justify-between md:justify-start gap-3 md:gap-4">
               {/* Who pays? - Left side */}
               <div className="relative flex-shrink-0">
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Who pays?</p>
+                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Who pays?</p>
                 {/* Mobile: Single tappable badge - taller to match +/- buttons */}
                 <button
                   onClick={() => {
@@ -875,7 +881,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
               
               {/* Budget Allocation - Right side (natural size on mobile, grows on desktop) */}
               <div className="md:flex-1 md:min-w-[230px]">
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Budget Allocation</p>
+                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Budget Allocation</p>
                 <div className="flex items-center gap-1.5">
                   {/* Percentage controls - 32x32 on both mobile and desktop */}
                   <button
@@ -885,7 +891,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                   >
                     −
                   </button>
-                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 w-10 text-center flex-shrink-0">
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 w-9 text-center flex-shrink-0">
                     {Number.isInteger(percentage) ? percentage : percentage.toFixed(1)}%
                   </span>
                   <button
@@ -897,7 +903,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                   </button>
                   {/* Amount input - grows to fill, shrinks as needed */}
                   <div className="relative flex-1 min-w-0">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{selectedCurrency.symbol}</span>
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]">{selectedCurrency.symbol}</span>
                     <input
                       type="text"
                       inputMode="numeric"
@@ -916,7 +922,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                         setEditingCategory(null);
                         setEditingValue('');
                       }}
-                      className="w-full pl-5 pr-2 py-1.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-right font-semibold text-slate-700 dark:text-white text-sm focus:outline-none focus:border-emerald-400"
+                      className="w-full pl-5 pr-2 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-right font-semibold text-slate-700 dark:text-white text-xs focus:outline-none focus:border-emerald-400"
                     />
                   </div>
                 </div>
@@ -947,11 +953,11 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
               };
               
               return (
-                <div className="pt-3 border-t border-slate-200 dark:border-slate-600">
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-600">
                   {/* Collapsible Header */}
                   <button
                     onClick={togglePaymentTracking}
-                    className="w-full flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white cursor-pointer transition-colors"
+                    className="w-full flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide hover:text-slate-800 dark:hover:text-white cursor-pointer transition-colors"
                   >
                     <span className="flex items-center gap-1">
                       Payment Details
@@ -966,14 +972,14 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                   
                   {/* Collapsible Content */}
                   {isPaymentExpanded && (
-                    <div className="mt-3 space-y-3">
+                    <div className="mt-2 space-y-2">
                       {/* Row 1: Total Bill + Amount Paid */}
                       <div className="grid grid-cols-2 gap-2">
                         {/* Total Bill */}
                         <div>
-                          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Total Bill</label>
+                          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Total Bill</label>
                           <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px]">{selectedCurrency.symbol}</span>
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]">{selectedCurrency.symbol}</span>
                             <input
                               type="text"
                               inputMode="numeric"
@@ -983,7 +989,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                                 handleActualCostChange(cat.key, parseInt(val) || 0);
                               }}
                               placeholder={amount.toString()}
-                              className={`w-full pl-6 pr-2 py-1.5 bg-white dark:bg-slate-900/50 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
+                              className={`w-full pl-5 pr-2 h-8 bg-white dark:bg-slate-900/50 border rounded-lg text-xs font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
                                 isOverBudget ? 'border-red-300 dark:border-red-500' : 'border-slate-200 dark:border-slate-600'
                               }`}
                             />
@@ -991,9 +997,9 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                         </div>
                         {/* Amount Paid */}
                         <div>
-                          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Amount Paid</label>
+                          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Amount Paid</label>
                           <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px]">{selectedCurrency.symbol}</span>
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]">{selectedCurrency.symbol}</span>
                             <input
                               type="text"
                               inputMode="numeric"
@@ -1003,7 +1009,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                                 handleAmountPaidChange(cat.key, parseInt(val) || 0);
                               }}
                               placeholder="0"
-                              className={`w-full pl-6 pr-2 py-1.5 bg-white dark:bg-slate-900/50 border rounded-lg text-sm font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
+                              className={`w-full pl-5 pr-2 h-8 bg-white dark:bg-slate-900/50 border rounded-lg text-xs font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
                                 isOverPaid ? 'border-orange-300 dark:border-orange-500' : 'border-slate-200 dark:border-slate-600'
                               }`}
                             />
@@ -1031,18 +1037,18 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                       <div className="grid grid-cols-2 gap-2 items-start">
                         {/* Vendor */}
                         <div>
-                          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Vendor</label>
+                          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Vendor</label>
                           <input
                             type="text"
                             value={data.vendor || ''}
                             onChange={(e) => updateExpenseField(cat.key, 'vendor', e.target.value)}
                             placeholder="Vendor name..."
-                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                            className="w-full px-2 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-xs text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
                           />
                         </div>
                         {/* Notes - Auto-expanding textarea */}
                         <div>
-                          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Notes</label>
+                          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Notes</label>
                           <textarea
                             ref={(el) => {
                               if (!el) return;
@@ -1073,8 +1079,8 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                             }}
                             placeholder="Any notes..."
                             rows={1}
-                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 resize-none overflow-hidden"
-                            style={{ minHeight: '34px' }}
+                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-xs text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 resize-none overflow-hidden"
+                            style={{ minHeight: '32px' }}
                           />
                         </div>
                       </div>
@@ -1157,20 +1163,20 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
     const priceDifference = selectedPresetData ? selectedPresetData.value - totalBill : 0;
 
     return (
-      <div className="mb-6">
+      <div className="mb-4">
         {/* Mahr Card - Standalone at top */}
         <div className="rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-700 border-l-4 border-l-cyan-500 dark:border-l-cyan-400">
           {/* Collapsed Header */}
           <button
             onClick={() => setExpandedCard(isExpanded ? null : 'mahr')}
-            className="w-full p-3 text-left"
+            className="w-full px-3 py-2.5 text-left"
           >
             <div className="flex items-start gap-2">
-              <span className="text-lg flex-shrink-0 w-6 text-center">💎</span>
+              <span className="text-base flex-shrink-0 w-5 text-center">💎</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm">Mahr (Groom's Obligation)</span>
-                  <span className="text-[11px] bg-cyan-100 dark:bg-cyan-800/50 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded font-bold">
+                  <span className="font-semibold text-slate-700 dark:text-slate-200 text-xs">Mahr (Groom's Obligation)</span>
+                  <span className="text-[10px] bg-cyan-100 dark:bg-cyan-800/50 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded font-bold">
                     ☪️ Excluded from Budget
                   </span>
                 </div>
@@ -1194,17 +1200,17 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
           
           {/* Expanded Content */}
           {isExpanded && (
-            <div className="px-3 pb-4 border-t border-cyan-200 dark:border-cyan-700">
+            <div className="px-3 pb-3 border-t border-cyan-200 dark:border-cyan-700">
               {/* Info Text */}
-              <p className="my-3 text-[13px] italic text-slate-400 dark:text-slate-400">
+              <p className="my-2 text-[11px] italic text-slate-400 dark:text-slate-400">
                 Mahr is a religious obligation from groom to bride — not a wedding expense. It's tracked separately from your wedding budget.
               </p>
 
               {/* Smart Select Chips - Sunnah Guidelines */}
-              <div className="mb-5">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Select a Guideline:
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                    Select a Guideline
                   </p>
                   <button
                     onClick={(e) => { e.stopPropagation(); fetchSilverPrice(); }}
@@ -1305,20 +1311,20 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 {/* Link to Mahr page */}
                 <button
                   onClick={(e) => { e.stopPropagation(); onNavigateToMahr?.(); }}
-                  className="mt-3 text-sm font-medium text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 hover:underline transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="mt-2 text-xs font-medium text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 hover:underline transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   View full history & sources in Mahr Calculator <span>→</span>
                 </button>
               </div>
 
               {/* Manual Input Section */}
-              <div className="space-y-3 pt-3 border-t border-cyan-200 dark:border-cyan-700">
+              <div className="space-y-2 pt-2 border-t border-cyan-200 dark:border-cyan-700">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Mahr Amount:
+                  <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                    Mahr Amount
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 text-sm font-medium">{selectedCurrency.symbol}</span>
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 text-xs font-medium">{selectedCurrency.symbol}</span>
                     <input
                       type="text"
                       inputMode="numeric"
@@ -1339,18 +1345,18 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                         setSelectedMahrCurrency(null);
                       }}
                       placeholder="Enter custom Mahr amount"
-                      className="w-full pl-8 pr-3 py-2.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                      className="w-full pl-6 pr-2 h-8 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                     />
                   </div>
                 </div>
                 
                 {/* Amount Paid */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Amount Paid:
+                  <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                    Amount Paid
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 text-sm font-medium">{selectedCurrency.symbol}</span>
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 text-xs font-medium">{selectedCurrency.symbol}</span>
                     <input
                       type="text"
                       inputMode="numeric"
@@ -1364,7 +1370,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                         }));
                       }}
                       placeholder="0"
-                      className="w-full pl-8 pr-3 py-2.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                      className="w-full pl-6 pr-2 h-8 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                     />
                   </div>
                 </div>
@@ -1390,20 +1396,20 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
     };
     
     return (
-      <div key={section} className="mb-4">
+      <div key={section} className="mb-3">
         {/* Section Header - Clickable to expand/collapse */}
         <button
           onClick={toggleSection}
-          className={`w-full p-3 rounded-xl flex items-center justify-between transition-all border border-slate-200 dark:border-slate-600 ${
+          className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between transition-all border border-slate-200 dark:border-slate-600 ${
             isExpanded 
               ? 'bg-slate-100 dark:bg-slate-700 rounded-b-none border-b-0' 
               : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'
           }`}
         >
           <div className="flex items-center gap-2">
-            <span className="text-lg">{sectionInfo.icon}</span>
+            <span className="text-base">{sectionInfo.icon}</span>
             <div className="text-left">
-              <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                 {sectionInfo.title}
                 {/* Explicit warning icon if issues exist */}
                 {sectionTotals.hasIssues && (
@@ -1422,32 +1428,32 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Section percentage */}
-            <span className={`text-sm font-bold ${sectionTotals.hasIssues ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+            <span className={`text-xs font-bold ${sectionTotals.hasIssues ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
               {sectionTotals.totalPercentage.toFixed(0)}%
             </span>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
           </div>
         </button>
         
         {/* Expanded content */}
         {isExpanded && (
-          <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-b-xl p-3 pt-2 border border-t-0 border-slate-200 dark:border-slate-600">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+          <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-b-xl p-2.5 pt-2 border border-t-0 border-slate-200 dark:border-slate-600">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 items-start">
               {categories.map((cat, index) => renderCategoryCard(cat, isFirstSection && index === 0))}
             </div>
             
             {/* Inline Add Item Form (shown when adding to this section) */}
             {addingToSection === section && (
-              <div className="mt-3 p-4 bg-slate-100 dark:bg-slate-700/50 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-600/50">
-                <div className="flex items-center gap-3">
+              <div className="mt-2 p-3 bg-slate-100 dark:bg-slate-700/50 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-600/50">
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
                     placeholder={`Enter item name...`}
-                    className="flex-1 px-3 py-2.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                    className="flex-1 px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleAddCustomCategory(section);
                       if (e.key === 'Escape') { setAddingToSection(null); setNewCategoryName(''); }
@@ -1457,13 +1463,13 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                   <button
                     onClick={() => handleAddCustomCategory(section)}
                     disabled={!newCategoryName.trim()}
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors flex-shrink-0"
+                    className="px-3 h-8 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-medium transition-colors flex-shrink-0"
                   >
                     Add
                   </button>
                   <button
                     onClick={() => { setAddingToSection(null); setNewCategoryName(''); }}
-                    className=" py-2.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 text-sm font-medium transition-colors flex-shrink-0"
+                    className="h-8 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 text-xs font-medium transition-colors flex-shrink-0"
                   >
                     Cancel
                   </button>
@@ -1516,14 +1522,14 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
       </div>
 
       {/* Budget & Guest Input - Compact Header */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-4 md:p-6 mb-6 border border-slate-100 dark:border-slate-700">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-3 md:p-4 mb-4 border border-slate-100 dark:border-slate-700">
         {/* Row 1: Currency (full width on mobile) */}
-        <div className="mb-3">
-          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Currency</label>
+        <div className="mb-2">
+          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Currency</label>
           <select
             value={currencyCode}
             onChange={(e) => setCurrencyCode(e.target.value)}
-            className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-xl transition-all outline-none text-sm font-semibold text-slate-800 dark:text-white"
+            className="w-full h-8 px-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white"
           >
             {CURRENCIES.map(c => (
               <option key={c.code} value={c.code}>{c.symbol} {c.code} - {c.name}</option>
@@ -1532,18 +1538,18 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         </div>
         
         {/* Row 2: Budget & Guests (side by side) */}
-        <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="grid grid-cols-2 gap-3 mb-2">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Total Budget</label>
+            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Total Budget</label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">{selectedCurrency.symbol}</span>
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">{selectedCurrency.symbol}</span>
               <input 
                 type="number" 
                 min="0"
                 value={totalBudget} 
                 onChange={(e) => setTotalBudget(e.target.value)} 
                 placeholder="25,000" 
-                className={`w-full pl-8 pr-2 py-2.5 bg-slate-50 dark:bg-slate-900/50 border focus:bg-white dark:focus:bg-slate-800 rounded-xl transition-all outline-none text-base font-semibold text-slate-800 dark:text-white ${
+                className={`w-full pl-7 pr-2 h-8 bg-slate-50 dark:bg-slate-900/50 border focus:bg-white dark:focus:bg-slate-800 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white ${
                   budgetError ? 'border-red-300 focus:border-red-400' : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
                 }`}
               />
@@ -1551,9 +1557,9 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
             {budgetError && <p className="text-red-500 dark:text-red-400 text-[10px] mt-1 font-medium">{budgetError}</p>}
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Guests</label>
+            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Guests</label>
             <div className="relative">
-              <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <Users className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
               <input 
                 type="number" 
                 min="1"
@@ -1561,7 +1567,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 value={guestCount} 
                 onChange={(e) => setGuestCount(e.target.value)} 
                 placeholder="200" 
-                className={`w-full pl-8 pr-2 py-2.5 bg-slate-50 dark:bg-slate-900/50 border focus:bg-white dark:focus:bg-slate-800 rounded-xl transition-all outline-none text-base font-semibold text-slate-800 dark:text-white ${
+                className={`w-full pl-7 pr-2 h-8 bg-slate-50 dark:bg-slate-900/50 border focus:bg-white dark:focus:bg-slate-800 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white ${
                   guestError ? 'border-red-300 focus:border-red-400' : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
                 }`}
               />
@@ -1608,42 +1614,42 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
 
       {/* Over Budget Warning - Sticky below header */}
       {isOverBudget && (
-        <div className="sticky top-[80px] z-40 -mx-4 mb-6">
+        <div className="sticky top-[80px] z-40 -mx-4 mb-4">
           {/* Mobile: Full gradient banner */}
-          <div className="md:hidden bg-gradient-to-r from-red-500 via-rose-500 to-red-600 text-white py-3 px-5 shadow-lg border-b-4 border-red-700">
+          <div className="md:hidden bg-gradient-to-r from-red-500 via-rose-500 to-red-600 text-white py-2 px-4 shadow-lg border-b-2 border-red-700">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                  <span className="text-xl">⚠️</span>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                  <span className="text-base">⚠️</span>
                 </div>
                 <div>
-                  <p className="font-bold text-base">Over Budget!</p>
-                  <p className="text-xs text-red-100">Reduce allocations to continue</p>
+                  <p className="font-bold text-sm">Over Budget!</p>
+                  <p className="text-[10px] text-red-100">Reduce allocations to continue</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-black">
+                <p className="text-xl font-black">
                   {Number.isInteger(totalPercentage) ? totalPercentage : totalPercentage.toFixed(1)}%
                 </p>
-                <p className="text-xs text-red-100">
+                <p className="text-[10px] text-red-100">
                   +{selectedCurrency.symbol}{Math.round(totalAllocated - budget).toLocaleString()} over
                 </p>
               </div>
             </div>
           </div>
           {/* Desktop: Slimmer, more refined banner */}
-          <div className="hidden md:block bg-gradient-to-r from-red-500 to-rose-500 text-white py-2.5 px-6 shadow-lg rounded-b-xl">
+          <div className="hidden md:block bg-gradient-to-r from-red-500 to-rose-500 text-white py-2 px-6 shadow-lg rounded-b-xl">
             <div className="flex items-center justify-between max-w-4xl mx-auto">
-              <div className="flex items-center gap-3">
-                <span className="text-lg">⚠️</span>
-                <p className="font-bold">Over Budget!</p>
-                <p className="text-sm text-red-100">Reduce allocations to continue</p>
+              <div className="flex items-center gap-2.5">
+                <span className="text-base">⚠️</span>
+                <p className="font-bold text-sm">Over Budget!</p>
+                <p className="text-xs text-red-100">Reduce allocations to continue</p>
               </div>
-              <div className="flex items-center gap-4">
-                <p className="text-lg font-black">
+              <div className="flex items-center gap-3">
+                <p className="text-base font-black">
                   {Number.isInteger(totalPercentage) ? totalPercentage : totalPercentage.toFixed(1)}%
                 </p>
-                <p className="text-sm font-semibold bg-white/20 px-3 py-1 rounded-full">
+                <p className="text-xs font-semibold bg-white/20 px-2.5 py-0.5 rounded-full">
                   +{selectedCurrency.symbol}{Math.round(totalAllocated - budget).toLocaleString()} over
                 </p>
               </div>
@@ -1653,12 +1659,12 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
       )}
 
       {/* Category Sections */}
-      <div className="mb-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-          <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Budget Allocation</h3>
+      <div className="mb-4">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Budget Allocation</h3>
           <button 
             onClick={handleResetDefaults}
-            className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+            className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
           >
             Reset to Defaults
           </button>
@@ -1674,7 +1680,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
       </div>
 
       {/* Budget Health Status - Compact "Status Badge" style */}
-      <div className={`rounded-xl p-3 md:p-4 mb-4 transition-all ${
+      <div className={`rounded-xl p-2.5 md:p-3 mb-3 transition-all ${
         isOverBudget 
           ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 border border-red-300 dark:border-red-700' 
           : 'bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700'
@@ -1746,15 +1752,15 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
       </div>
 
       {/* Financial Summary - Always shown */}
-      <div className="bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/80 rounded-2xl mb-6 border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/80 rounded-2xl mb-4 border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="px-4 py-2.5">
           <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-2">
-            💰 Financial Summary
+            Financial Summary
           </h3>
         </div>
         <div className="border-t border-slate-200 dark:border-slate-700" />
-        <div className="p-4 space-y-2">
-          <div className="flex justify-between items-start text-sm">
+        <div className="p-3 space-y-2">
+          <div className="flex justify-between items-start text-xs">
             <span className="text-slate-500 dark:text-slate-400">Wedding Expenses</span>
             <div className="text-right">
               <span className="font-medium text-slate-600 dark:text-slate-300">
@@ -1770,7 +1776,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
           </div>
           {/* Mahr row - only show if Mahr is set */}
           {mahrActualCost > 0 && (
-            <div className="flex justify-between items-center text-sm">
+            <div className="flex justify-between items-center text-xs">
               <span className="text-cyan-600 dark:text-cyan-400 flex items-center gap-1">
                 <span>☪️</span> Mahr
               </span>
@@ -1809,10 +1815,10 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         const displayPercentage = Math.min(100, paymentPercentage);
         
         return (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl mb-6 border border-slate-200 dark:border-slate-700 shadow-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl mb-4 border border-slate-200 dark:border-slate-700 shadow-sm">
             <div className="flex items-center justify-between px-4 md:px-6 py-2.5">
               <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-2">
-                💰 Payment Tracking
+                Payment Tracking
               </h3>
               {isOverBudgetTotal && (
                 <span className="text-xs bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 px-2 py-1 rounded-full font-bold">
@@ -1821,32 +1827,32 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
               )}
             </div>
             <div className="border-t border-slate-200 dark:border-slate-700" />
-            <div className="p-4 md:p-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Total Budget</p>
-                <p className="text-lg font-bold text-slate-700 dark:text-slate-200">
+            <div className="p-3 md:p-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-2.5">
+                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Budget</p>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mt-0.5">
                   {selectedCurrency.symbol}{grandTotalRequired.toLocaleString()}
                 </p>
               </div>
-              <div className={`rounded-xl p-3 ${isOverBudgetTotal ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20'}`}>
-                <p className={`text-xs ${isOverBudgetTotal ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>Total Bills</p>
-                <p className={`text-lg font-bold ${isOverBudgetTotal ? 'text-red-700 dark:text-red-300' : 'text-blue-700 dark:text-blue-300'}`}>
+              <div className={`rounded-lg p-2.5 ${isOverBudgetTotal ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20'}`}>
+                <p className={`text-[10px] font-bold uppercase tracking-wide ${isOverBudgetTotal ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>Total Bills</p>
+                <p className={`text-sm font-bold mt-0.5 ${isOverBudgetTotal ? 'text-red-700 dark:text-red-300' : 'text-blue-700 dark:text-blue-300'}`}>
                   {selectedCurrency.symbol}{expenseTotals.totalActual.toLocaleString()}
                 </p>
                 {isOverBudgetTotal && (
                   <p className="text-[10px] text-red-500 dark:text-red-400 mt-0.5">+{selectedCurrency.symbol}{overBudgetAmountTotal.toLocaleString()} over</p>
                 )}
               </div>
-              <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-3">
-                <p className="text-xs text-emerald-600 dark:text-emerald-400">Paid</p>
-                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-2.5">
+                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Paid</p>
+                <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">
                   {selectedCurrency.symbol}{expenseTotals.totalPaid.toLocaleString()}
                 </p>
               </div>
-              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
-                <p className="text-xs text-amber-600 dark:text-amber-400">Pending</p>
-                <p className="text-lg font-bold text-amber-700 dark:text-amber-300">
+              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2.5">
+                <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide">Pending</p>
+                <p className="text-sm font-bold text-amber-700 dark:text-amber-300 mt-0.5">
                   {selectedCurrency.symbol}{Math.max(0, expenseTotals.totalPending).toLocaleString()}
                 </p>
               </div>
@@ -1877,6 +1883,40 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
           </div>
         );
       })()}
+
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowResetConfirm(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <RefreshCw className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Reset Allocations?</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">This cannot be undone</p>
+              </div>
+            </div>
+            <div className="mb-6 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                All budget percentages, payer assignments, and custom categories will be reset to their default values.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowResetConfirm(false)}
+                className="flex-1 py-2.5 px-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                Cancel
+              </button>
+              <button onClick={confirmResetDefaults}
+                className="flex-1 py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl transition-colors">
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
