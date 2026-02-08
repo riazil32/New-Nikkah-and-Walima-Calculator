@@ -226,6 +226,39 @@ const MoveIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const MoreVertical = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>
+  </svg>
+);
+
+// Initials avatar colors - deterministic based on name
+const AVATAR_COLORS = [
+  { bg: 'bg-teal-700', text: 'text-teal-100' },
+  { bg: 'bg-blue-700', text: 'text-blue-100' },
+  { bg: 'bg-violet-700', text: 'text-violet-100' },
+  { bg: 'bg-rose-700', text: 'text-rose-100' },
+  { bg: 'bg-amber-700', text: 'text-amber-100' },
+  { bg: 'bg-emerald-700', text: 'text-emerald-100' },
+  { bg: 'bg-cyan-700', text: 'text-cyan-100' },
+  { bg: 'bg-pink-700', text: 'text-pink-100' },
+  { bg: 'bg-indigo-700', text: 'text-indigo-100' },
+  { bg: 'bg-slate-600', text: 'text-slate-100' },
+];
+
+const getInitials = (name: string): string => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const getAvatarColor = (name: string) => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+};
+
 // ============================================================
 // DATA MIGRATION
 // ============================================================
@@ -1541,8 +1574,8 @@ export const GuestManager: React.FC = () => {
                     className={`w-full px-4 py-3 flex items-center justify-between bg-violet-50/50 dark:bg-violet-900/10 transition-colors ${!isEditingThisGroup ? 'hover:bg-violet-100/50 dark:hover:bg-violet-900/20 cursor-pointer' : ''}`}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-violet-200 dark:bg-violet-800/50 flex items-center justify-center text-lg flex-shrink-0">
-                        👨‍👩‍👧
+                      <div className="w-9 h-9 rounded-full bg-violet-700 border border-white/10 flex items-center justify-center text-xs font-bold text-violet-100 flex-shrink-0">
+                        {getInitials(group.name)}
                       </div>
                       <div className="text-left flex-1 min-w-0">
                         {isEditingThisGroup ? (
@@ -1563,13 +1596,13 @@ export const GuestManager: React.FC = () => {
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-bold text-slate-800 dark:text-white">{group.name}</p>
                               {isExpanded ? (
-                                <div className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded px-1.5 py-0.5 focus-within:border-blue-400">
-                                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Table</span>
+                                <div className="inline-flex items-center gap-1 bg-slate-200/70 dark:bg-black/30 border border-slate-300 dark:border-white/10 rounded-md px-2 py-0.5 focus-within:border-emerald-500 transition-colors">
+                                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Table</span>
                                   <input
                                     type="text" inputMode="numeric" pattern="[0-9]*" value={group.tableNumber || ''} placeholder="#"
                                     onClick={(e) => e.stopPropagation()}
                                     onChange={(e) => handleGroupTableNumber(group.id, e.target.value.replace(/[^0-9]/g, ''))}
-                                    className="w-8 bg-transparent text-xs font-medium text-slate-600 dark:text-slate-300 outline-none text-center placeholder:text-slate-400"
+                                    className="w-8 bg-transparent text-xs font-medium text-slate-700 dark:text-slate-200 outline-none text-center placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                   />
                                 </div>
                               ) : group.tableNumber ? (
@@ -1938,10 +1971,22 @@ const GuestRow: React.FC<GuestRowProps> = ({
   moveMenuGuestId, setMoveMenuGuestId, onMoveGuest, moveMenuRef,
 }) => {
   const [editForm, setEditForm] = useState(guest);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuLocalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isEditing && editingGuest) setEditForm(editingGuest);
   }, [isEditing, editingGuest]);
+
+  // Close "..." menu on outside click
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (moreMenuLocalRef.current && !moreMenuLocalRef.current.contains(e.target as Node)) setMoreMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [moreMenuOpen]);
 
   const toggleEvent = (eventId: string) => {
     setEditForm(prev => ({
@@ -1959,9 +2004,35 @@ const GuestRow: React.FC<GuestRowProps> = ({
   };
 
   if (isEditing) {
+    const editAvatarColor = getAvatarColor(guest.name);
+    const editInitials = getInitials(guest.name);
     return (
-      <div className="p-3 sm:p-4 bg-blue-50/50 dark:bg-blue-900/10 border-l-2 border-blue-400">
-        <div className="space-y-3">
+      <div className="bg-blue-50/50 dark:bg-blue-900/10 border-l-2 border-blue-400">
+        {/* Identity header */}
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-blue-200/50 dark:border-blue-800/30">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 border border-white/10 ${editAvatarColor.bg} ${editAvatarColor.text}`}>
+              {editInitials}
+            </div>
+            <div>
+              <span className="font-semibold text-sm text-slate-800 dark:text-white">{guest.name}</span>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">Editing guest details</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button onClick={onCancelEdit}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 rounded-lg text-xs font-medium transition-colors">
+              <X className="w-3.5 h-3.5" /> Cancel
+            </button>
+            <button onClick={() => onSave(editForm)}
+              disabled={editForm.invitedTo.length === 0 || !editForm.name.trim()}
+              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg text-xs font-bold transition-colors">
+              <Check className="w-3.5 h-3.5" /> Save
+            </button>
+          </div>
+        </div>
+
+        <div className="p-3 sm:p-4 space-y-3">
           {/* Row 1: Name + Role (2-col) */}
           <div className="grid grid-cols-2 gap-x-6">
             <div>
@@ -2103,18 +2174,6 @@ const GuestRow: React.FC<GuestRowProps> = ({
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onCancelEdit}
-              className="flex items-center gap-1 px-3 py-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-xs font-medium transition-colors">
-              <X className="w-3.5 h-3.5" /> Cancel
-            </button>
-            <button onClick={() => onSave(editForm)}
-              disabled={editForm.invitedTo.length === 0 || !editForm.name.trim()}
-              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg text-xs font-bold transition-colors">
-              <Check className="w-3.5 h-3.5" /> Save
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -2126,33 +2185,125 @@ const GuestRow: React.FC<GuestRowProps> = ({
   const showMoveMenu = moveMenuGuestId === guest.id;
   const availableGroups = groups.filter(g => g.id !== guest.groupId);
 
+  const avatarColor = getAvatarColor(guest.name);
+  const initials = getInitials(guest.name);
+
   const RoleBadge = guest.role !== 'guest' ? (
-    <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
+    <span className="text-[10px] uppercase tracking-wide bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">
       {roleInfo.icon} {roleInfo.shortLabel}
     </span>
   ) : null;
 
   const SideBadge = (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${
+    <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded font-bold whitespace-nowrap ${
       guest.side === 'groom' ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400'
         : guest.side === 'bride' ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400'
         : 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400'
     }`}>
-      {guest.side === 'groom' ? "Groom's" : guest.side === 'bride' ? "Bride's" : 'Both'}
+      {guest.side === 'groom' ? 'Groom' : guest.side === 'bride' ? 'Bride' : 'Both'}
     </span>
   );
 
+  const RsvpIndicator = (
+    <button onClick={() => onCycleRsvp(guest.id)} title="Click to change RSVP"
+      className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded font-bold transition-colors cursor-pointer hover:opacity-80 whitespace-nowrap ${rsvp.bg} ${rsvp.text}`}>
+      {guest.rsvpStatus === 'confirmed' ? '✓ ' : guest.rsvpStatus === 'declined' ? '✗ ' : ''}{rsvp.label}
+    </button>
+  );
+
+  // RSVP status dot color for avatar indicator
+  const rsvpDotColor = guest.rsvpStatus === 'confirmed' ? 'bg-emerald-500 ring-emerald-500/30'
+    : guest.rsvpStatus === 'declined' ? 'bg-red-500 ring-red-500/30'
+    : 'bg-slate-400 dark:bg-slate-500 ring-slate-400/30';
+
   return (
-    <div className="relative px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-      {/* Actions */}
-      <div className="absolute top-3 right-2 flex items-center">
-        {/* Move button */}
-        <div className="relative">
-          <button onClick={() => setMoveMenuGuestId(showMoveMenu ? null : guest.id)}
-            className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30 rounded transition-colors"
-            title="Move guest">
-            <MoveIcon className="w-4 h-4" />
+    <div className="relative px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group/row">
+      <div className="flex items-center gap-3">
+        {/* Initials Avatar with RSVP status dot */}
+        <button onClick={() => onCycleRsvp(guest.id)} title={`RSVP: ${rsvp.label} — Click to change`}
+          className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 relative border border-white/10 cursor-pointer hover:opacity-90 transition-opacity ${avatarColor.bg} ${avatarColor.text}`}>
+          {initials}
+          {/* RSVP status dot */}
+          <span className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 ring-2 ${rsvpDotColor}`} />
+          {guest.type === 'child' && (
+            <span className="absolute -bottom-0.5 -left-0.5 w-3.5 h-3.5 bg-amber-400 rounded-full flex items-center justify-center text-[8px] border border-white dark:border-slate-800 font-bold text-amber-900">
+              C
+            </span>
+          )}
+        </button>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {/* Top row: Name + identity badges */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-semibold text-sm text-slate-800 dark:text-white truncate max-w-[140px] sm:max-w-none">{guest.name}</span>
+            {RoleBadge}
+            {SideBadge}
+            {guest.tableNumber && (
+              <span className="text-[10px] uppercase tracking-wide bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded font-bold">
+                T{guest.tableNumber}
+              </span>
+            )}
+          </div>
+
+          {/* Bottom row: Events */}
+          {invitedEvents.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {invitedEvents.slice(0, 3).map(event => (
+                <span key={event.id} className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                    event.id === 'nikkah' ? 'bg-emerald-500' : event.id === 'walima' ? 'bg-blue-500' : 'bg-slate-400 dark:bg-slate-500'
+                  }`} />
+                  {event.name}
+                </span>
+              ))}
+              {invitedEvents.length > 3 && (
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                  +{invitedEvents.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+          {(guest.phone || guest.notes) && (
+            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+              {guest.phone && <span>📱 {guest.phone}</span>}
+              {guest.notes && <span className="italic truncate">📝 {guest.notes}</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Right side: RSVP text badge (desktop) + Actions */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* RSVP text badge - only on larger screens; on mobile the avatar dot handles it */}
+          <div className="hidden sm:block mr-1">
+            {RsvpIndicator}
+          </div>
+          {/* Edit button - always visible */}
+          <button onClick={onEdit}
+            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors" title="Edit">
+            <Edit className="w-4 h-4" />
           </button>
+          {/* More menu (...) - contains Move and Delete */}
+          <div className="relative" ref={moreMenuLocalRef}>
+            <button onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="More options">
+              <MoreVertical className="w-4 h-4" />
+            </button>
+            {moreMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 z-30 py-1 overflow-hidden">
+                <button onClick={() => { setMoreMenuOpen(false); setMoveMenuGuestId(showMoveMenu ? null : guest.id); }}
+                  className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2">
+                  <MoveIcon className="w-3.5 h-3.5" /> Move to group
+                </button>
+                <div className="border-t border-slate-100 dark:border-slate-700 my-0.5" />
+                <button onClick={() => { setMoreMenuOpen(false); onDelete(); }}
+                  className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2">
+                  <Trash className="w-3.5 h-3.5" /> Delete guest
+                </button>
+              </div>
+            )}
+          </div>
+          {/* Move menu (opens after selecting "Move to group" from more menu) */}
           {showMoveMenu && (
             <div ref={moveMenuRef}
               className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 z-30 py-1 max-h-48 overflow-y-auto">
@@ -2173,89 +2324,6 @@ const GuestRow: React.FC<GuestRowProps> = ({
                 <p className="px-3 py-2 text-xs text-slate-400 italic">No groups to move to</p>
               )}
             </div>
-          )}
-        </div>
-        <button onClick={onEdit}
-          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors" title="Edit">
-          <Edit className="w-4 h-4" />
-        </button>
-        <button onClick={onDelete}
-          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors" title="Delete">
-          <Trash className="w-4 h-4" />
-        </button>
-      </div>
-
-      <div className="flex items-start gap-3">
-        {/* Avatar */}
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 relative ${
-          guest.side === 'groom' ? 'bg-teal-100 dark:bg-teal-900/30'
-            : guest.side === 'bride' ? 'bg-rose-100 dark:bg-rose-900/30'
-            : 'bg-violet-100 dark:bg-violet-900/30'
-        }`}>
-          {guest.gender === 'male' ? '👨' : '👩'}
-          {guest.type === 'child' && (
-            <span className="absolute -bottom-0.5 -right-0.5 text-[10px] bg-amber-400 rounded-full w-4 h-4 flex items-center justify-center">👶</span>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {/* Desktop */}
-          <div className="hidden md:flex items-center gap-2 flex-wrap pr-20">
-            <span className="font-semibold text-slate-800 dark:text-white">{guest.name}</span>
-            {RoleBadge}
-            {SideBadge}
-            {/* RSVP Badge - clickable */}
-            <button onClick={() => onCycleRsvp(guest.id)} title="Click to change RSVP"
-              className={`text-xs px-2 py-0.5 rounded-full font-semibold transition-colors cursor-pointer hover:opacity-80 ${rsvp.bg} ${rsvp.text}`}>
-              {guest.rsvpStatus === 'confirmed' ? '✓ ' : guest.rsvpStatus === 'declined' ? '✗ ' : ''}{rsvp.label}
-            </button>
-            {guest.tableNumber && (
-              <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded font-medium">
-                Table {guest.tableNumber}
-              </span>
-            )}
-          </div>
-
-          {/* Mobile */}
-          <div className="md:hidden">
-            <p className="font-semibold text-slate-800 dark:text-white pr-20">{guest.name}</p>
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              {RoleBadge}
-              {SideBadge}
-              <button onClick={() => onCycleRsvp(guest.id)} title="Click to change RSVP"
-                className={`text-xs px-2 py-0.5 rounded-full font-semibold transition-colors cursor-pointer hover:opacity-80 ${rsvp.bg} ${rsvp.text}`}>
-                {guest.rsvpStatus === 'confirmed' ? '✓ ' : guest.rsvpStatus === 'declined' ? '✗ ' : ''}{rsvp.label}
-              </button>
-              {guest.tableNumber && (
-                <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded font-medium">
-                  Table {guest.tableNumber}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Events + contact info */}
-          {invitedEvents.length > 0 && (
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 leading-relaxed">
-              {invitedEvents.slice(0, 3).map((event, idx) => (
-                <span key={event.id} className="whitespace-nowrap inline-block">
-                  {event.icon}&nbsp;{event.name}
-                  {(idx < Math.min(invitedEvents.length, 3) - 1 || invitedEvents.length > 3) && <span className="mx-1">•</span>}
-                </span>
-              ))}
-              {invitedEvents.length > 3 && (
-                <span className="whitespace-nowrap inline-block text-slate-400 dark:text-slate-500 font-medium">
-                  +{invitedEvents.length - 3} more
-                </span>
-              )}
-            </p>
-          )}
-          {guest.phone && (
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">📱 {guest.phone}</p>
-          )}
-          {guest.notes && (
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 italic">📝 {guest.notes}</p>
           )}
         </div>
       </div>
