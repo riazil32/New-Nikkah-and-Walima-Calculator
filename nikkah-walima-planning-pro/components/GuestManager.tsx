@@ -920,7 +920,14 @@ export const GuestManager: React.FC = () => {
   // ============================================================
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="max-w-5xl mx-auto px-4 py-8"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)) {
+          e.preventDefault();
+          (e.target as HTMLElement).blur();
+        }
+      }}
+    >
       {/* Header */}
       <div className="text-center mb-6">
         <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">
@@ -2071,7 +2078,7 @@ const GuestRow: React.FC<GuestRowProps> = ({
               <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Name <span className="text-red-400">*</span></p>
               <input type="text" value={editForm.name}
                 onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Guest name..." autoFocus
+                placeholder="Guest name..."
                 className="w-full h-8 px-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-blue-400 rounded-lg outline-none font-medium text-xs text-slate-800 dark:text-white placeholder:text-slate-400 transition-all"
               />
             </div>
