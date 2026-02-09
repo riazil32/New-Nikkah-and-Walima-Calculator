@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { 
   Guest, 
   GuestSide, 
@@ -299,6 +300,7 @@ export const GuestManager: React.FC = () => {
   const [moveMenuGuestId, setMoveMenuGuestId] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  useScrollLock(!!deleteConfirm || showImportModal);
   const [importError, setImportError] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<{ guests: Partial<Guest>[]; groups: string[] } | null>(null);
   // Custom event name/icon state now managed inside EventSettingsModal

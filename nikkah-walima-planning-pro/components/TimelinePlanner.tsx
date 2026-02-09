@@ -14,6 +14,7 @@ import {
   CachedPrayerData
 } from '../types';
 import { DatePicker } from './DatePicker';
+import { TimePicker } from './TimePicker';
 import { EventSettingsModal } from './EventSettingsModal';
 import { Clock, Plus, Trash, Edit, AlertTriangle, MapPin, RefreshCw, X, Info, ChevronDown, SettingsIcon } from './Icons';
 import { Combobox } from './Combobox';
@@ -477,11 +478,13 @@ export const TimelinePlanner: React.FC = () => {
   }, [fetchedPrayerTimes, fetchedSunrise, fetchedHijriDate]);
   
   // UI state
-  const [showEventModal, setShowEventModal] = useState(false);
+  // Inline form position: 'top' = expanded at top, { afterIndex } = between items, { editId } = replace event card, null = compact at top
+  const [inlineFormPosition, setInlineFormPosition] = useState<'top' | { afterIndex: number } | { editId: string } | null>(null);
   const [editingEvent, setEditingEvent] = useState<WeddingEvent | null>(null);
   const [showPresets, setShowPresets] = useState(false);
   const [isFormExpanded, setIsFormExpanded] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const inlineFormRef = useRef<HTMLDivElement>(null);
   
   // Form state for new/edit event
   const [eventForm, setEventForm] = useState({
@@ -624,7 +627,7 @@ export const TimelinePlanner: React.FC = () => {
       };
     });
     
-    closeEventModal();
+    closeInlineForm();
   };
 
   // Delete event
@@ -635,7 +638,7 @@ export const TimelinePlanner: React.FC = () => {
     }));
   };
 
-  // Open modal for editing
+  // Open inline form for editing (replaces the event card in-place)
   const handleEditEvent = (event: WeddingEvent) => {
     setEditingEvent(event);
     setEventForm({
@@ -646,14 +649,16 @@ export const TimelinePlanner: React.FC = () => {
       icon: event.icon || ''
     });
     setFormTouched(false);
-    setShowEventModal(true);
+    setInlineFormPosition({ editId: event.id });
+    setTimeout(() => inlineFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
   };
 
-  // Quick add from preset (used from Quick Add panel)
+  // Quick add from preset (used from Quick Add panel) - opens expanded form at top
   const handleQuickAdd = (preset: typeof EVENT_PRESETS[0]) => {
     const startMinutes = 12 * 60; // Default to noon
     const endMinutes = startMinutes + preset.duration;
     
+    setEditingEvent(null);
     setEventForm({
       name: preset.name,
       startTime: minutesToTime(startMinutes),
@@ -663,7 +668,7 @@ export const TimelinePlanner: React.FC = () => {
     });
     setFormTouched(false);
     setShowPresets(false);
-    setShowEventModal(true);
+    setInlineFormPosition('top');
   };
 
   // Quick add preset directly in modal
@@ -679,17 +684,18 @@ export const TimelinePlanner: React.FC = () => {
     }));
   };
 
-  // Close modal and reset
-  const closeEventModal = () => {
-    setShowEventModal(false);
+  // Close inline form and reset
+  const closeInlineForm = () => {
+    setInlineFormPosition(null);
     setEditingEvent(null);
     setFormTouched(false);
     setEventForm({ name: '', startTime: '12:00', endTime: '13:00', description: '', icon: '' });
   };
 
-  // Open modal with pre-filled start time (for Smart Gap buttons)
-  // Optional nextEventTime to calculate a smart end time (5 min before next event)
-  const openModalWithStartTime = (startTime: string, nextEventTime?: string) => {
+  // Open inline form at a gap position with pre-filled start time
+  // afterIndex: the timeline index after which to show the form
+  // If afterIndex is -1, it means "after last item" (we use sortedTimeline.length - 1)
+  const openInlineFormAtGap = (afterIndex: number, startTime: string, nextEventTime?: string) => {
     const startMinutes = timeToMinutes(startTime);
     let endMinutes = startMinutes + 30; // Default 30 min duration
     
@@ -702,6 +708,7 @@ export const TimelinePlanner: React.FC = () => {
       }
     }
     
+    setEditingEvent(null);
     setEventForm({
       name: '',
       startTime,
@@ -710,7 +717,8 @@ export const TimelinePlanner: React.FC = () => {
       icon: ''
     });
     setFormTouched(false);
-    setShowEventModal(true);
+    setInlineFormPosition({ afterIndex });
+    setTimeout(() => inlineFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
   };
 
   // Get the effective end time of a timeline item in minutes
@@ -764,6 +772,152 @@ export const TimelinePlanner: React.FC = () => {
   const hasLocation = timelineData.city && timelineData.country && timelineData.date;
   const hasPrayerTimes = prayerTimes.length > 0;
 
+  // Determine if the top form should be in compact or expanded state
+  const isTopFormExpanded = inlineFormPosition === 'top';
+  const isFormAtGap = inlineFormPosition !== null && typeof inlineFormPosition === 'object' && 'afterIndex' in inlineFormPosition;
+  const isFormEditing = inlineFormPosition !== null && typeof inlineFormPosition === 'object' && 'editId' in inlineFormPosition;
+
+  // Render the inline event form (used at top, between items, and for editing)
+  const renderInlineForm = (compact: boolean = false) => (
+    <div
+      ref={!compact ? inlineFormRef : undefined}
+      className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-all"
+    >
+      <div className="p-3">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+            {editingEvent ? 'Edit Event' : 'Add Event'}
+          </p>
+          {!compact && (
+            <button
+              onClick={closeInlineForm}
+              className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"
+            >
+              <X className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+          )}
+        </div>
+
+        {/* Quick Add Chips (only when adding new, not editing) */}
+        {!editingEvent && (
+          <div className="mb-2.5">
+            <div className="flex flex-wrap gap-1">
+              {EVENT_PRESETS.map(preset => (
+                <button
+                  key={preset.name}
+                  onClick={() => {
+                    if (compact) setInlineFormPosition('top');
+                    applyPresetToForm(preset);
+                  }}
+                  className="px-2 py-1 text-[11px] bg-slate-100 dark:bg-slate-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-slate-600 dark:text-slate-300 rounded-md transition-all flex items-center gap-1"
+                >
+                  <span className="text-xs">{preset.icon}</span>
+                  <span>{preset.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Event Name - always visible */}
+        <div>
+          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+            Event Name *
+          </label>
+          <input
+            type="text"
+            value={eventForm.name}
+            onChange={(e) => setEventForm(prev => ({ ...prev, name: e.target.value }))}
+            onFocus={() => { if (compact) setInlineFormPosition('top'); }}
+            placeholder="e.g., Nikkah Ceremony"
+            className={`w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 ${
+              formTouched && !eventForm.name 
+                ? 'border-red-400 dark:border-red-500' 
+                : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
+            }`}
+          />
+          {formTouched && !eventForm.name && (
+            <p className="text-[11px] text-red-500 mt-0.5">Event name is required</p>
+          )}
+        </div>
+
+        {/* Expanded fields - time, description, buttons */}
+        {!compact && (
+          <div className="mt-2.5 space-y-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                  Start Time *
+                </label>
+                <TimePicker
+                  value={eventForm.startTime}
+                  onChange={(val) => setEventForm(prev => ({ ...prev, startTime: val }))}
+                  hasError={formTouched && !eventForm.startTime}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                  End Time *
+                </label>
+                <TimePicker
+                  value={eventForm.endTime}
+                  onChange={(val) => setEventForm(prev => ({ ...prev, endTime: val }))}
+                  hasError={formTouched && !eventForm.endTime}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                Description
+              </label>
+              <textarea
+                ref={(el) => {
+                  if (!el) return;
+                  const adjustHeight = () => {
+                    el.style.height = 'auto';
+                    el.style.height = Math.max(32, el.scrollHeight) + 'px';
+                  };
+                  adjustHeight();
+                  if (!el.dataset.hasObserver) {
+                    el.dataset.hasObserver = '1';
+                    new ResizeObserver(adjustHeight).observe(el);
+                  }
+                }}
+                value={eventForm.description}
+                onChange={(e) => {
+                  setEventForm(prev => ({ ...prev, description: e.target.value }));
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
+                placeholder="Any notes about this event..."
+                rows={1}
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 resize-none overflow-hidden"
+                style={{ minHeight: '32px' }}
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveEvent}
+                className="flex-1 h-8 px-3 text-xs font-bold rounded-lg transition-all bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {editingEvent ? 'Save Changes' : 'Add Event'}
+              </button>
+              <button
+                onClick={closeInlineForm}
+                className="h-8 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8"
       onKeyDown={(e) => {
@@ -786,39 +940,40 @@ export const TimelinePlanner: React.FC = () => {
       {/* Event Tabs - Only show if multiple events enabled */}
       {enabledEvents.length > 1 && (
         <div className="mb-4">
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1.5 overflow-x-auto md:overflow-visible md:flex-wrap pb-2 -mx-4 px-4 md:mx-0 md:px-0 flex-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              {enabledEvents.map(event => (
-                <button
-                  key={event.id}
-                  onClick={() => switchEvent(event.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                    activeEventId === event.id
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  <span className="text-sm">{event.icon}</span>
-                  <span>{event.name}</span>
-                  {multiEventData.eventTimelines[event.id]?.events?.length > 0 && (
-                    <span className={`text-[11px] px-1.5 py-px rounded-full ${
-                      activeEventId === event.id
-                        ? 'bg-emerald-500'
-                        : 'bg-slate-200 dark:bg-slate-600'
-                    }`}>
-                      {multiEventData.eventTimelines[event.id].events.length}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Events</p>
             <button
               onClick={() => setShowSettingsModal(true)}
-              className="flex items-center gap-0.5 px-1.5 py-0.5 text-[11px] font-medium text-emerald-500 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors flex-shrink-0"
+              className="flex items-center gap-0.5 px-1.5 py-0.5 text-[11px] font-medium text-emerald-500 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
             >
               <SettingsIcon className="w-3 h-3" />
               Manage
             </button>
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto md:overflow-visible md:flex-wrap pb-1 -mx-4 px-4 md:mx-0 md:px-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            {enabledEvents.map(event => (
+              <button
+                key={event.id}
+                onClick={() => switchEvent(event.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                  activeEventId === event.id
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <span className="text-sm">{event.icon}</span>
+                <span>{event.name}</span>
+                {multiEventData.eventTimelines[event.id]?.events?.length > 0 && (
+                  <span className={`text-[11px] px-1.5 py-px rounded-full ${
+                    activeEventId === event.id
+                      ? 'bg-emerald-500'
+                      : 'bg-slate-200 dark:bg-slate-600'
+                  }`}>
+                    {multiEventData.eventTimelines[event.id].events.length}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -1007,42 +1162,21 @@ export const TimelinePlanner: React.FC = () => {
       {/* Timeline Section */}
       {hasPrayerTimes && (
         <>
-          {/* Add Event Button */}
-          <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => setShowEventModal(true)}
-              className="flex-1 h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Event
-            </button>
-            <button
-              onClick={() => setShowPresets(!showPresets)}
-              className="h-8 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition-all"
-            >
-              Quick Add
-            </button>
+          {/* Inline Add Event Form (always visible - compact or expanded) */}
+          <div className="mb-4">
+            {(isTopFormExpanded || (!isFormAtGap && !isFormEditing)) ? (
+              renderInlineForm(inlineFormPosition !== 'top')
+            ) : (
+              /* Collapsed placeholder when form is active elsewhere */
+              <button
+                onClick={() => { closeInlineForm(); setInlineFormPosition('top'); }}
+                className="w-full h-8 px-3 bg-white dark:bg-slate-800 border border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-400 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs font-semibold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Event
+              </button>
+            )}
           </div>
-
-          {/* Presets Dropdown */}
-          {showPresets && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-3 mb-4">
-              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Common Wedding Events:</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
-                {EVENT_PRESETS.map(preset => (
-                  <button
-                    key={preset.name}
-                    onClick={() => handleQuickAdd(preset)}
-                    className="p-2.5 bg-slate-50 dark:bg-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg text-left transition-all border border-transparent hover:border-emerald-300 dark:hover:border-emerald-700"
-                  >
-                    <span className="text-sm">{preset.icon}</span>
-                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-0.5">{preset.name}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-500">{preset.duration} min</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Timeline */}
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-3 md:p-4 border border-slate-200 dark:border-slate-700">
@@ -1104,7 +1238,7 @@ export const TimelinePlanner: React.FC = () => {
                 <div className="absolute left-4 md:left-6 top-0 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-700" />
 
                 {/* Timeline items */}
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {sortedTimeline.map((item, index) => {
                     const nextItem = sortedTimeline[index + 1];
                     // Use smart gap calculation that respects overlapping events
@@ -1153,6 +1287,9 @@ export const TimelinePlanner: React.FC = () => {
                             </div>
                           </div>
                         </div>
+                      ) : isFormEditing && (inlineFormPosition as { editId: string }).editId === (item as WeddingEvent).id ? (
+                        // Inline Edit Form (replaces the event card)
+                        renderInlineForm(false)
                       ) : (
                         // Custom Event Card
                         <div className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl p-3">
@@ -1248,11 +1385,18 @@ export const TimelinePlanner: React.FC = () => {
                       )}
                     </div>
                     
+                    {/* Inline form at this gap position */}
+                    {isFormAtGap && (inlineFormPosition as { afterIndex: number }).afterIndex === index && (
+                      <div className="relative pl-12 md:pl-16 py-1.5">
+                        {renderInlineForm(false)}
+                      </div>
+                    )}
+                    
                     {/* Smart Gap Button - shows when there's a 15+ min gap to next item */}
-                    {gapInfo && (
+                    {gapInfo && !(isFormAtGap && (inlineFormPosition as { afterIndex: number }).afterIndex === index) && (
                       <div className="relative pl-12 md:pl-16 py-1.5">
                         <button
-                          onClick={() => openModalWithStartTime(gapInfo.startTime, nextEventStartTime)}
+                          onClick={() => openInlineFormAtGap(index, gapInfo.startTime, nextEventStartTime)}
                           className="w-full py-1.5 border border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs"
                         >
                           <Plus className="w-3.5 h-3.5" />
@@ -1266,19 +1410,28 @@ export const TimelinePlanner: React.FC = () => {
 
                   {/* Add event after last item */}
                   {sortedTimeline.length > 0 && (() => {
-                    const lastItem = sortedTimeline[sortedTimeline.length - 1];
+                    const lastIndex = sortedTimeline.length - 1;
+                    const lastItem = sortedTimeline[lastIndex];
                     const lastEndTime = lastItem.type === 'fixed'
                       ? (lastItem as PrayerTime).time
                       : (lastItem as WeddingEvent).endTime;
+                    
+                    // Show inline form here if positioned after last item
+                    const isFormHere = isFormAtGap && (inlineFormPosition as { afterIndex: number }).afterIndex === lastIndex;
+                    
                     return (
                       <div className="relative pl-12 md:pl-16 py-1.5">
-                        <button
-                          onClick={() => openModalWithStartTime(lastEndTime)}
-                          className="w-full py-1.5 border border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          Add event after {lastItem.name}
-                        </button>
+                        {isFormHere ? (
+                          renderInlineForm(false)
+                        ) : (
+                          <button
+                            onClick={() => openInlineFormAtGap(lastIndex, lastEndTime)}
+                            className="w-full py-1.5 border border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add event after {lastItem.name}
+                          </button>
+                        )}
                       </div>
                     );
                   })()}
@@ -1302,126 +1455,6 @@ export const TimelinePlanner: React.FC = () => {
         </div>
       )}
 
-      {/* Add/Edit Event Modal */}
-      {showEventModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={closeEventModal}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 max-w-sm w-full shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="font-bold text-slate-800 dark:text-white text-sm">
-                {editingEvent ? 'Edit Event' : 'Add Event'}
-              </h4>
-              <button 
-                onClick={closeEventModal}
-                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"
-              >
-                <X className="w-4 h-4 text-slate-400" />
-              </button>
-            </div>
-
-            {/* Quick Add Chips (only when adding new event) */}
-            {!editingEvent && (
-              <div className="mb-3">
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Quick Add:</p>
-                <div className="flex flex-wrap gap-1">
-                  {EVENT_PRESETS.map(preset => (
-                    <button
-                      key={preset.name}
-                      onClick={() => applyPresetToForm(preset)}
-                      className="px-2 py-1 text-[11px] bg-slate-100 dark:bg-slate-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-slate-600 dark:text-slate-300 rounded-md transition-all flex items-center gap-1"
-                    >
-                      <span className="text-xs">{preset.icon}</span>
-                      <span>{preset.name.split(' ')[0]}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2.5">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                  Event Name *
-                </label>
-                <input
-                  type="text"
-                  value={eventForm.name}
-                  onChange={(e) => setEventForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="e.g., Nikkah Ceremony"
-                  className={`w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 ${
-                    formTouched && !eventForm.name 
-                      ? 'border-red-400 dark:border-red-500' 
-                      : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
-                  }`}
-                />
-                {formTouched && !eventForm.name && (
-                  <p className="text-[11px] text-red-500 mt-0.5">Event name is required</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                    Start Time *
-                  </label>
-                  <input
-                    type="time"
-                    value={eventForm.startTime}
-                    onChange={(e) => setEventForm(prev => ({ ...prev, startTime: e.target.value }))}
-                    className={`w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white ${
-                      formTouched && !eventForm.startTime 
-                        ? 'border-red-400 dark:border-red-500' 
-                        : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                    End Time *
-                  </label>
-                  <input
-                    type="time"
-                    value={eventForm.endTime}
-                    onChange={(e) => setEventForm(prev => ({ ...prev, endTime: e.target.value }))}
-                    className={`w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white ${
-                      formTouched && !eventForm.endTime 
-                        ? 'border-red-400 dark:border-red-500' 
-                        : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                  Description (optional)
-                </label>
-                <textarea
-                  value={eventForm.description}
-                  onChange={(e) => setEventForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Any notes about this event..."
-                  rows={2}
-                  className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={handleSaveEvent}
-                className="flex-1 h-8 px-3 text-xs font-bold rounded-lg transition-all bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                {editingEvent ? 'Save Changes' : 'Add Event'}
-              </button>
-              <button
-                onClick={closeEventModal}
-                className="h-8 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg transition-all"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Shared Event Settings Modal */}
       <EventSettingsModal
         isOpen={showSettingsModal}

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { WeddingEventConfig } from '../types';
 import { X, Check } from './Icons';
 import { CustomSelect } from './CustomSelect';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 // Categorized event presets (shared between GuestManager and TimelinePlanner)
 export const ALL_EVENT_PRESETS: { category: string; events: Omit<WeddingEventConfig, 'enabled'>[] }[] = [
@@ -53,6 +54,8 @@ export const EventSettingsModal: React.FC<EventSettingsModalProps> = ({
 }) => {
   const [newCustomEventName, setNewCustomEventName] = useState('');
   const [newCustomEventIcon, setNewCustomEventIcon] = useState('🎉');
+
+  useScrollLock(isOpen);
 
   const handleAdd = () => {
     const name = newCustomEventName.trim();

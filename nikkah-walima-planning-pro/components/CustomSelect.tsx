@@ -32,11 +32,22 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
   const selectedOption = options.find(o => String(o.value) === String(value));
 
-  // Calculate drop direction on open
+  // Calculate drop direction on open (respects scrollable ancestors like modals)
   const updateDirection = useCallback(() => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
+      // Find closest scrollable ancestor to determine actual available space
+      let availableBottom = window.innerHeight;
+      let el: HTMLElement | null = triggerRef.current.parentElement;
+      while (el) {
+        const { overflowY } = getComputedStyle(el);
+        if (overflowY === 'auto' || overflowY === 'scroll') {
+          availableBottom = Math.min(availableBottom, el.getBoundingClientRect().bottom);
+          break;
+        }
+        el = el.parentElement;
+      }
+      const spaceBelow = availableBottom - rect.bottom;
       setOpensUp(spaceBelow < 240);
     }
   }, []);
@@ -54,15 +65,23 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   }, [isOpen]);
 
   // Close on scroll outside the dropdown (prevents misaligned dropdown)
+  // Delayed attachment avoids the initial scrollIntoView (selected item) from triggering close
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: Event) => {
       // Don't close if scrolling inside the dropdown list itself
       if (listRef.current && listRef.current.contains(e.target as Node)) return;
+      // Don't close if scrolling inside the select container itself
+      if (containerRef.current && containerRef.current.contains(e.target as Node)) return;
       setIsOpen(false);
     };
-    window.addEventListener('scroll', handler, true);
-    return () => window.removeEventListener('scroll', handler, true);
+    const timeout = setTimeout(() => {
+      window.addEventListener('scroll', handler, true);
+    }, 100);
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener('scroll', handler, true);
+    };
   }, [isOpen]);
 
   // Reset highlight & calculate direction when opening

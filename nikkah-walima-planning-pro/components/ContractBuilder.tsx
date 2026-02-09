@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { ContractData, MahrPaymentType } from '../types';
 import { MAHR_TYPES, CURRENCIES } from '../constants';
 import { PrintPortal } from './PrintPortal';
@@ -50,6 +51,7 @@ export const ContractBuilder: React.FC = () => {
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [showMahrSync, setShowMahrSync] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  useScrollLock(showMahrSync || showResetConfirm);
   
   // Read mahr calculator data from localStorage
   const [silverPrice] = useLocalStorage<number>('mahr-silverPrice', 0.85);
@@ -466,7 +468,7 @@ export const ContractBuilder: React.FC = () => {
         )}
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+        <div className="flex flex-row gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">
           <button
             onClick={handleGenerate}
             className="flex-1 h-10 px-4 font-bold rounded-xl shadow-sm transition-all active:scale-[0.98] text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -475,9 +477,9 @@ export const ContractBuilder: React.FC = () => {
           </button>
           <button
             onClick={() => setShowResetConfirm(true)}
-            className="h-10 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold rounded-xl transition-all text-sm"
+            className="h-10 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold rounded-xl transition-all text-xs flex-shrink-0"
           >
-            Reset Form
+            Reset
           </button>
         </div>
       </div>

@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Users, Calculator, ChevronDown, Edit, Check, X, Trash, RefreshCw, AlertTriangle, CheckCircle } from './Icons';
 import { CustomSelect } from './CustomSelect';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { BUDGET_CATEGORIES, CURRENCIES, SECTION_LABELS, MAHR_TYPES } from '../constants';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { BudgetCategory, Payer, CategorySection, CategoryExpense, PaymentStatus, BudgetTemplate, MahrPaymentType } from '../types';
@@ -185,6 +186,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
   // Smart default: expanded if has data, collapsed if empty
   const [expandedPaymentTracking, setExpandedPaymentTracking] = useState<Record<string, boolean>>({});
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  useScrollLock(showResetConfirm);
   
   // One-time tooltip for payer badge (mobile only)
   // Stays visible until user taps the badge to learn the feature
