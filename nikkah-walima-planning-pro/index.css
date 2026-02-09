@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/* Enable class-based dark mode */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: 'Playfair Display', serif;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scroll padding to account for sticky header on mobile */
+html {
+  scroll-padding-top: 6rem;
+}
+
+/* iOS Safari overscroll fix */
+@supports (-webkit-touch-callout: none) {
+  html, body {
+    height: -webkit-fill-available;
+  }
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom scrollbar for dropdown menus */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+/* Subtle pulse animation for tooltip */
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.02);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* Hide print-root on screen - only visible when printing */
+#print-root {
+  display: none;
+}
+
+/* Print styles for certificate using Portal approach */
+@media print {
+  @page {
+    size: A4;
+    margin: 8mm;
+  }
+  
+  /* Reset body/html */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  
+  /* Hide the main app completely - removes all blank pages */
+  #root {
+    display: none !important;
+  }
+  
+  /* Show the print portal */
+  #print-root {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  
+  /* Certificate container */
+  #certificate-preview {
+    width: 100% !important;
+    background: white !important;
+    margin: 0 !important;
+  }
+  
+  /* Certificate inner padding - balanced for A4 */
+  #certificate-preview > div {
+    padding: 8mm !important;
+  }
+  
+  #certificate-preview .border-4 { 
+    padding: 11mm !important; 
+    border-width: 3px !important; 
+  }
+  
+  /* Fine-tuned spacing to fill A4 evenly */
+  #certificate-preview .p-8, #certificate-preview .md\:p-12 { padding: 6.5mm !important; }
+  #certificate-preview .p-6 { padding: 5.5mm !important; }
+  #certificate-preview .mb-10 { margin-bottom: 9mm !important; }
+  #certificate-preview .mb-8 { margin-bottom: 7mm !important; }
+  #certificate-preview .mb-6 { margin-bottom: 5.5mm !important; }
+  #certificate-preview .mb-4 { margin-bottom: 3.5mm !important; }
+  #certificate-preview .mb-2 { margin-bottom: 2mm !important; }
+  #certificate-preview .pb-8 { padding-bottom: 7mm !important; }
+  #certificate-preview .pt-8 { padding-top: 7mm !important; }
+  #certificate-preview .mt-10 { margin-top: 9mm !important; }
+  #certificate-preview .gap-8 { gap: 7mm !important; }
+  #certificate-preview .gap-6 { gap: 5.5mm !important; }
+  #certificate-preview .space-y-4 > * + * { margin-top: 3.5mm !important; }
+  #certificate-preview .rounded-2xl { border-radius: 6px !important; }
+  
+  /* Balanced fonts for print */
+  #certificate-preview .text-5xl { font-size: 32px !important; }
+  #certificate-preview .text-4xl { font-size: 24px !important; }
+  #certificate-preview .text-3xl { font-size: 20px !important; }
+  #certificate-preview .text-2xl { font-size: 16px !important; }
+  #certificate-preview .text-xl { font-size: 14px !important; }
+  #certificate-preview .text-lg { font-size: 12px !important; }
+  #certificate-preview .text-sm { font-size: 11px !important; }
+  #certificate-preview .text-xs { font-size: 9px !important; }
+  
+  /* Preserve colors */
+  #certificate-preview .bg-teal-50 { background-color: #f0fdfa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .bg-rose-50 { background-color: #fff1f2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .bg-violet-50 { background-color: #f5f3ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .border-emerald-600 { border-color: #059669 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .border-emerald-200 { border-color: #a7f3d0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .border-teal-200 { border-color: #99f6e4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .border-rose-200 { border-color: #fecdd3 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .border-violet-200 { border-color: #ddd6fe !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .text-emerald-600, #certificate-preview .text-emerald-700 { color: #059669 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .text-teal-600, #certificate-preview .text-teal-700 { color: #0d9488 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .text-rose-600, #certificate-preview .text-rose-700 { color: #e11d48 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #certificate-preview .text-violet-600, #certificate-preview .text-violet-700 { color: #7c3aed !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

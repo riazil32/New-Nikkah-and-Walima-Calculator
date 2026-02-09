@@ -1,0 +1,837 @@
+
+import React, { useState, useMemo } from 'react';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useScrollLock } from '../hooks/useScrollLock';
+import { ContractData, MahrPaymentType } from '../types';
+import { MAHR_TYPES, CURRENCIES } from '../constants';
+import { PrintPortal } from './PrintPortal';
+import { DatePicker } from './DatePicker';
+import { ChevronDown } from './Icons';
+
+// Default empty contract data
+const getDefaultContractData = (): ContractData => ({
+  dateGregorian: '',
+  dateHijri: '',
+  location: '',
+  groomName: '',
+  groomFatherName: '',
+  brideName: '',
+  brideFatherName: '',
+  mahrAmount: '',
+  mahrType: 'prompt',
+  witness1Name: '',
+  witness2Name: '',
+  waliName: '',
+  officiantName: '',
+});
+
+// Required fields for validation
+const REQUIRED_FIELDS: { field: keyof ContractData; label: string }[] = [
+  { field: 'dateGregorian', label: 'Date (Gregorian)' },
+  { field: 'location', label: 'Location' },
+  { field: 'groomName', label: "Groom's Name" },
+  { field: 'groomFatherName', label: "Groom's Father's Name" },
+  { field: 'brideName', label: "Bride's Name" },
+  { field: 'brideFatherName', label: "Bride's Father's Name" },
+  { field: 'mahrAmount', label: 'Mahr Amount' },
+  { field: 'witness1Name', label: 'Witness 1' },
+  { field: 'witness2Name', label: 'Witness 2' },
+  { field: 'waliName', label: 'Wali' },
+];
+
+export const ContractBuilder: React.FC = () => {
+  // Persisted form state
+  const [contractData, setContractData] = useLocalStorage<ContractData>(
+    'contract-formData',
+    getDefaultContractData()
+  );
+  
+  // Preview state
+  const [showPreview, setShowPreview] = useState(false);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
+  const [showMahrSync, setShowMahrSync] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  useScrollLock(showMahrSync || showResetConfirm);
+  
+  // Read mahr calculator data from localStorage
+  const [silverPrice] = useLocalStorage<number>('mahr-silverPrice', 0.85);
+  const [mahrCurrencyCode] = useLocalStorage<string>('mahr-currency', 'GBP');
+  
+  const mahrCurrency = useMemo(() => 
+    CURRENCIES.find(c => c.code === mahrCurrencyCode) || CURRENCIES[0],
+    [mahrCurrencyCode]
+  );
+  
+  // Calculate mahr options
+  const mahrOptions = useMemo(() => {
+    return MAHR_TYPES.map(mahr => ({
+      ...mahr,
+      calculatedValue: (mahr.grams * silverPrice).toFixed(2),
+      formattedValue: `${mahrCurrency.symbol}${(mahr.grams * silverPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }));
+  }, [silverPrice, mahrCurrency]);
+
+  // Handle sync selection
+  const handleSyncMahr = (value: string) => {
+    updateField('mahrAmount', value);
+    setShowMahrSync(false);
+    // Clear the temporary key
+    localStorage.removeItem('mahr-selectedForContract');
+  };
+
+  // Check for pre-selected mahr from calculator
+  const handleOpenMahrSync = () => {
+    const savedMahr = localStorage.getItem('mahr-selectedForContract');
+    if (savedMahr) {
+      // Auto-fill and show confirmation
+      updateField('mahrAmount', savedMahr);
+      localStorage.removeItem('mahr-selectedForContract');
+    } else {
+      setShowMahrSync(true);
+    }
+  };
+
+  // Validation
+  const missingFields = useMemo(() => {
+    return REQUIRED_FIELDS.filter(({ field }) => !contractData[field]?.toString().trim());
+  }, [contractData]);
+
+  const isFormValid = missingFields.length === 0;
+
+  // Update a single field
+  const updateField = (field: keyof ContractData, value: string | MahrPaymentType) => {
+    setContractData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Handle generate click
+  const handleGenerate = () => {
+    if (!isFormValid) {
+      setShowValidationErrors(true);
+      return;
+    }
+    setShowValidationErrors(false);
+    setShowPreview(true);
+  };
+
+  // Reset form
+  const handleReset = () => {
+    setContractData(getDefaultContractData());
+    setShowPreview(false);
+    setShowValidationErrors(false);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-8 scroll-mt-24"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)) {
+          e.preventDefault();
+          (e.target as HTMLElement).blur();
+        }
+      }}
+    >
+      {/* Header */}
+      <div className="text-center mb-6">
+        <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">Nikkah Certificate Designer</h2>
+        <p className="text-slate-600 dark:text-slate-400 italic">"And among His signs is that He created for you mates from among yourselves." - Quran 30:21</p>
+      </div>
+
+      {/* Disclaimer Banner */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl p-3 mb-4">
+        <div className="flex gap-2.5">
+          <span className="text-amber-500 text-sm flex-shrink-0 mt-0.5">ℹ️</span>
+          <div className="text-[11px] text-amber-800 dark:text-amber-200">
+            <p className="font-bold mb-0.5">This is a keepsake certificate for religious & commemorative purposes.</p>
+            <p className="text-amber-700 dark:text-amber-300">
+              Perfect for signing during your Nikkah ceremony, framing, or as a beautiful alternative to generic Imam-provided forms. 
+              For legal recognition in the UK/US, you must also complete civil registration with your local authority.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Form Card */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-3 md:p-5 mb-4 border border-slate-100 dark:border-slate-700">
+        
+        {/* Header Info Section */}
+        <section className="mb-5">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold">1</span>
+            Certificate Details
+          </h3>
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                Date (Gregorian) <span className="text-red-500">*</span>
+              </label>
+              <DatePicker
+                value={contractData.dateGregorian}
+                onChange={(val) => updateField('dateGregorian', val)}
+                placeholder="Select date"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                Date (Hijri)
+                <span className="text-slate-400 dark:text-slate-500 ml-1.5 font-normal normal-case">Subject to moon sighting</span>
+              </label>
+              <input
+                type="text"
+                value={contractData.dateHijri}
+                onChange={(e) => updateField('dateHijri', e.target.value)}
+                placeholder="e.g., 15 Shaban 1447"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                Location / Venue <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={contractData.location}
+                onChange={(e) => updateField('location', e.target.value)}
+                placeholder="e.g., East London Mosque, London, UK"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Couple Details Section */}
+        <section className="mb-5">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold">2</span>
+            The Couple
+          </h3>
+          <div className="grid md:grid-cols-2 gap-3">
+            {/* Groom Section */}
+            <div className="bg-teal-50 dark:bg-teal-900/20 rounded-xl p-3 border border-teal-200 dark:border-teal-800/50">
+              <h4 className="text-xs font-bold text-teal-700 dark:text-teal-400 mb-2.5 flex items-center gap-1.5">
+                <span className="text-sm">🤵</span> The Groom
+              </h4>
+              <div className="space-y-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={contractData.groomName}
+                    onChange={(e) => updateField('groomName', e.target.value)}
+                    placeholder="Enter groom's full name"
+                    className="w-full px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-teal-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                    Father's Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={contractData.groomFatherName}
+                    onChange={(e) => updateField('groomFatherName', e.target.value)}
+                    placeholder="Enter groom's father's name"
+                    className="w-full px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-teal-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Bride Section */}
+            <div className="bg-rose-50 dark:bg-rose-900/20 rounded-xl p-3 border border-rose-200 dark:border-rose-800/50">
+              <h4 className="text-xs font-bold text-rose-700 dark:text-rose-400 mb-2.5 flex items-center gap-1.5">
+                <span className="text-sm">👰</span> The Bride
+              </h4>
+              <div className="space-y-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={contractData.brideName}
+                    onChange={(e) => updateField('brideName', e.target.value)}
+                    placeholder="Enter bride's full name"
+                    className="w-full px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-rose-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                    Father's Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={contractData.brideFatherName}
+                    onChange={(e) => updateField('brideFatherName', e.target.value)}
+                    placeholder="Enter bride's father's name"
+                    className="w-full px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-rose-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Mahr Section */}
+        <section className="mb-5">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold">3</span>
+            The Mahr
+          </h3>
+          <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-3 border border-violet-200 dark:border-violet-800/50">
+            <div className="grid md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                  Mahr Amount / Description <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={contractData.mahrAmount}
+                  onChange={(e) => updateField('mahrAmount', e.target.value)}
+                  placeholder="e.g., £5,000 or 500 grams of silver"
+                  className="w-full px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-violet-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                />
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  Can be cash, gold, property, or services (e.g., "Teach 5 Surahs")
+                </p>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                  Payment Type <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <label className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg border cursor-pointer transition-all text-xs ${
+                    contractData.mahrType === 'prompt' 
+                      ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-400 text-violet-700 dark:text-violet-300' 
+                      : 'bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-violet-300'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="mahrType"
+                      value="prompt"
+                      checked={contractData.mahrType === 'prompt'}
+                      onChange={() => updateField('mahrType', 'prompt')}
+                      className="sr-only"
+                    />
+                    <span className="font-semibold">Prompt</span>
+                    <span className="text-[11px] whitespace-nowrap">(Mu'ajjal)</span>
+                  </label>
+                  <label className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg border cursor-pointer transition-all text-xs ${
+                    contractData.mahrType === 'deferred' 
+                      ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-400 text-violet-700 dark:text-violet-300' 
+                      : 'bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-violet-300'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="mahrType"
+                      value="deferred"
+                      checked={contractData.mahrType === 'deferred'}
+                      onChange={() => updateField('mahrType', 'deferred')}
+                      className="sr-only"
+                    />
+                    <span className="font-semibold">Deferred</span>
+                    <span className="text-[11px] whitespace-nowrap">(Mu'wajjal)</span>
+                  </label>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  Prompt = paid at time of Nikkah. Deferred = paid later (upon death/divorce).
+                </p>
+              </div>
+            </div>
+            {/* Sync from Calculator button */}
+            <div className="mt-3 pt-3 border-t border-violet-200 dark:border-violet-800/50">
+              <button
+                type="button"
+                className="text-xs font-semibold text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 flex items-center gap-1.5"
+                onClick={handleOpenMahrSync}
+              >
+                <span className="text-sm">💎</span> Sync from Mahr Calculator
+              </button>
+              
+              {/* Mahr Sync Modal */}
+              {showMahrSync && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowMahrSync(false)}>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="font-bold text-slate-800 dark:text-white text-sm">Select Mahr Amount</h4>
+                      <button 
+                        onClick={() => setShowMahrSync(false)}
+                        className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"
+                      >
+                        <span className="text-slate-400 text-lg">&times;</span>
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+                      Based on current silver price: {mahrCurrency.symbol}{silverPrice.toFixed(2)}/gram
+                    </p>
+                    <div className="space-y-2">
+                      {mahrOptions.map(option => (
+                        <button
+                          key={option.id}
+                          onClick={() => handleSyncMahr(option.formattedValue)}
+                          className="w-full p-3 bg-slate-50 dark:bg-slate-700 hover:bg-violet-50 dark:hover:bg-violet-900/30 border border-slate-200 dark:border-slate-600 hover:border-violet-300 dark:hover:border-violet-600 rounded-lg text-left transition-all"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-xs font-bold text-slate-800 dark:text-white">{option.name}</p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400">{option.grams}g silver</p>
+                            </div>
+                            <p className="text-xs font-bold text-violet-600 dark:text-violet-400">{option.formattedValue}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-3 text-center">
+                      Prices synced from Mahr Calculator tab
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Witnesses Section */}
+        <section className="mb-5">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold">4</span>
+            Witnesses & Officiant
+          </h3>
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                Witness 1 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={contractData.witness1Name}
+                onChange={(e) => updateField('witness1Name', e.target.value)}
+                placeholder="Enter first witness name"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                Witness 2 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={contractData.witness2Name}
+                onChange={(e) => updateField('witness2Name', e.target.value)}
+                placeholder="Enter second witness name"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                Wali (Bride's Guardian) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={contractData.waliName}
+                onChange={(e) => updateField('waliName', e.target.value)}
+                placeholder="Enter Wali's name"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Usually the bride's father or male relative
+              </p>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                Officiant (Imam)
+              </label>
+              <input
+                type="text"
+                value={contractData.officiantName}
+                onChange={(e) => updateField('officiantName', e.target.value)}
+                placeholder="Enter Imam's name"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Validation Errors */}
+        {showValidationErrors && missingFields.length > 0 && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl">
+            <p className="text-xs font-bold text-red-700 dark:text-red-400 mb-1.5">Please fill in the required fields:</p>
+            <ul className="text-[11px] text-red-600 dark:text-red-400 list-disc list-inside">
+              {missingFields.map(({ field, label }) => (
+                <li key={field}>{label}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-row gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">
+          <button
+            onClick={handleGenerate}
+            className="flex-1 h-10 px-4 font-bold rounded-xl shadow-sm transition-all active:scale-[0.98] text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            Generate Certificate Preview
+          </button>
+          <button
+            onClick={() => setShowResetConfirm(true)}
+            className="h-10 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold rounded-xl transition-all text-xs flex-shrink-0"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
+      {/* FAQ Section */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm mb-4 border border-slate-200 dark:border-slate-700">
+        <div className="px-3 py-2.5">
+          <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            Frequently Asked Questions
+          </h3>
+        </div>
+        <div className="border-t border-slate-200 dark:border-slate-700" />
+        <div className="p-3 space-y-2">
+          {/* FAQ 1 */}
+          <details className="group">
+            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Will my Imam sign this certificate?</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform flex-shrink-0" />
+            </summary>
+            <div className="p-2.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="mb-1.5">
+                <strong className="text-emerald-600 dark:text-emerald-400">Yes, most Imams are happy to sign a keepsake certificate!</strong>
+              </p>
+              <p className="mb-1.5">
+                The key is to <strong>show your Imam before the ceremony</strong> to get his approval. Most Imams will happily sign a beautiful keepsake certificate alongside their official register if you ask politely in advance.
+              </p>
+              <p className="text-slate-500 dark:text-slate-400 italic">
+                Tip: Bring a printed copy to your pre-Nikkah meeting so the Imam knows what to expect on the day.
+              </p>
+            </div>
+          </details>
+
+          {/* FAQ 2 */}
+          <details className="group">
+            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Is this certificate legally binding?</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform flex-shrink-0" />
+            </summary>
+            <div className="p-2.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="mb-1.5">
+                <strong className="text-amber-600 dark:text-amber-400">No, this is a religious/commemorative certificate.</strong>
+              </p>
+              <p className="mb-1.5">
+                In the UK, USA, Canada, and most Western countries, you need <strong>civil registration</strong> with your local authority (council/city hall) for your marriage to be legally recognized.
+              </p>
+              <p>
+                This certificate is for your <strong>Islamic Nikkah ceremony</strong> - perfect for signing in front of family, framing on your wall, and keeping as a beautiful memento of your blessed union.
+              </p>
+            </div>
+          </details>
+
+          {/* FAQ 3 */}
+          <details className="group">
+            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Why do I need 2 witnesses and a Wali?</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform flex-shrink-0" />
+            </summary>
+            <div className="p-2.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="mb-1.5">
+                These are <strong>Islamic requirements</strong> for a valid Nikkah:
+              </p>
+              <ul className="list-disc list-inside space-y-0.5 mb-1.5">
+                <li><strong>2 Adult Muslim Witnesses</strong> - Required to observe and confirm the marriage contract</li>
+                <li><strong>Wali (Guardian)</strong> - The bride's guardian (usually her father) who gives consent. This is required in most schools of Islamic jurisprudence.</li>
+              </ul>
+              <p className="text-slate-500 dark:text-slate-400 italic">
+                The Imam/Officiant field is optional but recommended if someone is conducting the ceremony.
+              </p>
+            </div>
+          </details>
+
+          {/* FAQ 4 */}
+          <details className="group">
+            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">What's the difference between Prompt and Deferred Mahr?</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform flex-shrink-0" />
+            </summary>
+            <div className="p-2.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="mb-1.5">
+                <strong className="text-violet-600 dark:text-violet-400">Prompt (Mu'ajjal):</strong> Paid immediately at the time of the Nikkah ceremony. This is the most common practice.
+              </p>
+              <p>
+                <strong className="text-violet-600 dark:text-violet-400">Deferred (Mu'wajjal):</strong> Payment is delayed - typically payable upon the wife's request, divorce, or the husband's death. Some couples split the Mahr into both portions.
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      {/* Certificate Preview Controls (shown inline when preview is active) */}
+      {showPreview && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mb-4">
+          <div className="bg-slate-50 dark:bg-slate-700 p-3 flex justify-between items-center">
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Certificate Preview</h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => window.print()}
+                className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-all flex items-center gap-1.5"
+              >
+                Print Certificate
+              </button>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="h-8 px-3 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 text-slate-600 dark:text-slate-200 font-bold rounded-lg text-xs transition-all"
+              >
+                Edit Form
+              </button>
+            </div>
+          </div>
+          
+          {/* Inline preview of certificate (visible on screen) */}
+          <div className="p-8 md:p-12 bg-gradient-to-br from-white to-emerald-50">
+            {/* Decorative Border */}
+            <div className="border-4 border-double border-emerald-600 p-8 md:p-12">
+              {/* Header */}
+              <div className="text-center mb-10">
+                <div className="text-emerald-600 text-5xl mb-4">﷽</div>
+                <h1 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 mb-2">
+                  Nikkah Certificate
+                </h1>
+                <p className="text-emerald-700 font-medium">شهادة النكاح</p>
+              </div>
+
+              {/* Date & Location */}
+              <div className="text-center mb-10 pb-8 border-b border-emerald-200">
+                <p className="text-slate-600 mb-2">
+                  <span className="font-semibold">Date:</span> {contractData.dateGregorian ? new Date(contractData.dateGregorian).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
+                  {contractData.dateHijri && <span className="text-emerald-600 ml-2">({contractData.dateHijri})</span>}
+                </p>
+                <p className="text-slate-600">
+                  <span className="font-semibold">Location:</span> {contractData.location || '—'}
+                </p>
+              </div>
+
+              {/* Main Content */}
+              <div className="text-center mb-10 max-w-2xl mx-auto">
+                <p className="text-slate-700 leading-relaxed mb-6">
+                  This is to certify that the Islamic marriage contract (Nikkah) has been solemnized between:
+                </p>
+                
+                {/* The Couple */}
+                <div className="grid md:grid-cols-2 gap-8 mb-8">
+                  {/* Groom */}
+                  <div className="bg-teal-50 rounded-2xl p-6 border border-teal-200">
+                    <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-2">The Groom</p>
+                    <p className="text-xl font-serif font-bold text-slate-800">{contractData.groomName || '—'}</p>
+                    <p className="text-sm text-slate-600 mt-1">Son of {contractData.groomFatherName || '—'}</p>
+                  </div>
+                  
+                  {/* Bride */}
+                  <div className="bg-rose-50 rounded-2xl p-6 border border-rose-200">
+                    <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-2">The Bride</p>
+                    <p className="text-xl font-serif font-bold text-slate-800">{contractData.brideName || '—'}</p>
+                    <p className="text-sm text-slate-600 mt-1">Daughter of {contractData.brideFatherName || '—'}</p>
+                  </div>
+                </div>
+
+                {/* Mahr */}
+                <div className="bg-violet-50 rounded-2xl p-6 border border-violet-200 mb-8">
+                  <p className="text-xs font-bold text-violet-600 uppercase tracking-widest mb-2">The Mahr (Dower)</p>
+                  <p className="text-2xl font-bold text-slate-800">{contractData.mahrAmount || '—'}</p>
+                  <p className="text-sm text-violet-600 mt-1">
+                    {contractData.mahrType === 'prompt' ? 'Prompt (Mu\'ajjal) - Payable at time of Nikkah' : 'Deferred (Mu\'wajjal) - Payable upon demand'}
+                  </p>
+                </div>
+
+                <p className="text-slate-700 leading-relaxed">
+                  The marriage was conducted in accordance with Islamic Shariah, with the mutual consent of both parties and in the presence of the witnesses named below.
+                </p>
+              </div>
+
+              {/* Witnesses & Signatures */}
+              <div className="grid md:grid-cols-2 gap-6 pt-8 border-t border-emerald-200">
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Witnesses</p>
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-200 pb-2">
+                      <p className="text-sm text-slate-500">Witness 1</p>
+                      <p className="font-semibold text-slate-800">{contractData.witness1Name || '—'}</p>
+                    </div>
+                    <div className="border-b border-slate-200 pb-2">
+                      <p className="text-sm text-slate-500">Witness 2</p>
+                      <p className="font-semibold text-slate-800">{contractData.witness2Name || '—'}</p>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Officials</p>
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-200 pb-2">
+                      <p className="text-sm text-slate-500">Wali (Bride's Guardian)</p>
+                      <p className="font-semibold text-slate-800">{contractData.waliName || '—'}</p>
+                    </div>
+                    {contractData.officiantName && (
+                      <div className="border-b border-slate-200 pb-2">
+                        <p className="text-sm text-slate-500">Officiant (Imam)</p>
+                        <p className="font-semibold text-slate-800">{contractData.officiantName}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="text-center mt-10 pt-8 border-t border-emerald-200">
+                <p className="text-emerald-600 text-sm font-medium italic">
+                  "And among His signs is that He created for you mates from among yourselves, that you may dwell in tranquility with them, and He has put love and mercy between your hearts." - Quran 30:21
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Print Portal - Certificate rendered outside #root for clean printing */}
+      {showPreview && (
+        <PrintPortal>
+          <div id="certificate-preview" className="bg-white">
+            <div className="p-8 md:p-12 bg-white">
+              {/* Decorative Border */}
+              <div className="border-4 border-double border-emerald-600 p-8 md:p-12">
+                {/* Header */}
+                <div className="text-center mb-10">
+                  <div className="text-emerald-600 text-5xl mb-4">﷽</div>
+                  <h1 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 mb-2">
+                    Nikkah Certificate
+                  </h1>
+                  <p className="text-emerald-700 font-medium">شهادة النكاح</p>
+                </div>
+
+                {/* Date & Location */}
+                <div className="text-center mb-10 pb-8 border-b border-emerald-200">
+                  <p className="text-slate-600 mb-2">
+                    <span className="font-semibold">Date:</span> {contractData.dateGregorian ? new Date(contractData.dateGregorian).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
+                    {contractData.dateHijri && <span className="text-emerald-600 ml-2">({contractData.dateHijri})</span>}
+                  </p>
+                  <p className="text-slate-600">
+                    <span className="font-semibold">Location:</span> {contractData.location || '—'}
+                  </p>
+                </div>
+
+                {/* Main Content */}
+                <div className="text-center mb-10 max-w-2xl mx-auto">
+                  <p className="text-slate-700 leading-relaxed mb-6">
+                    This is to certify that the Islamic marriage contract (Nikkah) has been solemnized between:
+                  </p>
+                  
+                  {/* The Couple */}
+                  <div className="grid grid-cols-2 gap-8 mb-8">
+                    {/* Groom */}
+                    <div className="bg-teal-50 rounded-2xl p-6 border border-teal-200">
+                      <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-2">The Groom</p>
+                      <p className="text-xl font-serif font-bold text-slate-800">{contractData.groomName || '—'}</p>
+                      <p className="text-sm text-slate-600 mt-1">Son of {contractData.groomFatherName || '—'}</p>
+                    </div>
+                    
+                    {/* Bride */}
+                    <div className="bg-rose-50 rounded-2xl p-6 border border-rose-200">
+                      <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-2">The Bride</p>
+                      <p className="text-xl font-serif font-bold text-slate-800">{contractData.brideName || '—'}</p>
+                      <p className="text-sm text-slate-600 mt-1">Daughter of {contractData.brideFatherName || '—'}</p>
+                    </div>
+                  </div>
+
+                  {/* Mahr */}
+                  <div className="bg-violet-50 rounded-2xl p-6 border border-violet-200 mb-8">
+                    <p className="text-xs font-bold text-violet-600 uppercase tracking-widest mb-2">The Mahr (Dower)</p>
+                    <p className="text-2xl font-bold text-slate-800">{contractData.mahrAmount || '—'}</p>
+                    <p className="text-sm text-violet-600 mt-1">
+                      {contractData.mahrType === 'prompt' ? 'Prompt (Mu\'ajjal) - Payable at time of Nikkah' : 'Deferred (Mu\'wajjal) - Payable upon demand'}
+                    </p>
+                  </div>
+
+                  <p className="text-slate-700 leading-relaxed">
+                    The marriage was conducted in accordance with Islamic Shariah, with the mutual consent of both parties and in the presence of the witnesses named below.
+                  </p>
+                </div>
+
+                {/* Witnesses & Signatures */}
+                <div className="grid grid-cols-2 gap-6 pt-8 border-t border-emerald-200">
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Witnesses</p>
+                    <div className="space-y-4">
+                      <div className="border-b border-slate-200 pb-2">
+                        <p className="text-sm text-slate-500">Witness 1</p>
+                        <p className="font-semibold text-slate-800">{contractData.witness1Name || '—'}</p>
+                      </div>
+                      <div className="border-b border-slate-200 pb-2">
+                        <p className="text-sm text-slate-500">Witness 2</p>
+                        <p className="font-semibold text-slate-800">{contractData.witness2Name || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Officials</p>
+                    <div className="space-y-4">
+                      <div className="border-b border-slate-200 pb-2">
+                        <p className="text-sm text-slate-500">Wali (Bride's Guardian)</p>
+                        <p className="font-semibold text-slate-800">{contractData.waliName || '—'}</p>
+                      </div>
+                      {contractData.officiantName && (
+                        <div className="border-b border-slate-200 pb-2">
+                          <p className="text-sm text-slate-500">Officiant (Imam)</p>
+                          <p className="font-semibold text-slate-800">{contractData.officiantName}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="text-center mt-10 pt-8 border-t border-emerald-200">
+                  <p className="text-emerald-600 text-sm font-medium italic">
+                    "And among His signs is that He created for you mates from among yourselves, that you may dwell in tranquility with them, and He has put love and mercy between your hearts." - Quran 30:21
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </PrintPortal>
+      )}
+
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowResetConfirm(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 max-w-sm w-full shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-slate-800 dark:text-white mb-2">Reset Form?</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-5">
+              Are you sure? This will clear all certificate fields and cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  handleReset();
+                  setShowResetConfirm(false);
+                }}
+                className="flex-1 h-9 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-lg transition-colors"
+              >
+                Reset
+              </button>
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 h-9 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold text-sm rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
