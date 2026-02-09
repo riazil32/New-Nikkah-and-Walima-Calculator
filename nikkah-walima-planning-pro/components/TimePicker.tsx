@@ -147,6 +147,11 @@ const TimeBox: React.FC<{
   );
 };
 
+/** Detect touch/mobile device (coarse pointer = finger, not mouse) */
+function isTouchDevice(): boolean {
+  return window.matchMedia('(pointer: coarse)').matches;
+}
+
 export const TimePicker: React.FC<TimePickerProps> = ({
   value,
   onChange,
@@ -161,6 +166,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const nativeInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize draft from value when opening
   const openPopover = () => {
@@ -178,6 +184,19 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 
   const handleCancel = () => {
     setIsOpen(false);
+  };
+
+  const handleTriggerClick = () => {
+    if (isOpen) {
+      handleCancel();
+      return;
+    }
+    // On touch devices, use the native OS time picker
+    if (isTouchDevice() && nativeInputRef.current) {
+      nativeInputRef.current.showPicker();
+      return;
+    }
+    openPopover();
   };
 
   // Calculate drop direction (respects scrollable ancestors like modals)
@@ -231,11 +250,24 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
+      {/* Hidden native time input for mobile OS picker */}
+      <input
+        ref={nativeInputRef}
+        type="time"
+        value={value || ''}
+        onChange={(e) => {
+          if (e.target.value) onChange(e.target.value);
+        }}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+
       {/* Trigger */}
       <div
         ref={triggerRef}
         className={`flex items-center h-8 bg-slate-50 dark:bg-slate-900/50 border ${borderClass} rounded-lg transition-all cursor-pointer`}
-        onClick={() => isOpen ? handleCancel() : openPopover()}
+        onClick={handleTriggerClick}
       >
         <Clock className="ml-2.5 w-3.5 h-3.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
         <span className="flex-1 text-xs font-semibold text-slate-800 dark:text-white px-2 select-none">
@@ -243,7 +275,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
         </span>
       </div>
 
-      {/* Popover - Material style time input */}
+      {/* Popover - Material style time input (desktop only) */}
       {isOpen && (
         <div
           ref={popoverRef}
