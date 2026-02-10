@@ -1,12 +1,79 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { ContractData, MahrPaymentType } from '../types';
 import { MAHR_TYPES, CURRENCIES } from '../constants';
-import { PrintPortal } from './PrintPortal';
 import { DatePicker } from './DatePicker';
-import { ChevronDown } from './Icons';
+import { ChevronDown, X } from './Icons';
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
+
+/** A4 preview: renders children at fixed 794×1123px (A4 at 96dpi) and scales to fit container.
+ *  fitToContainer: when true, also considers container height for scaling (for modal use). */
+const A4_WIDTH = 794;
+const A4_HEIGHT = 1123;
+
+const A4PreviewContainer = React.forwardRef<HTMLDivElement, { children: React.ReactNode; fitToContainer?: boolean }>(({ children, fitToContainer }, contentRef) => {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [offsetX, setOffsetX] = useState(0);
+  const [offsetY, setOffsetY] = useState(0);
+
+  const setRefs = useCallback((el: HTMLDivElement | null) => {
+    innerRef.current = el;
+    if (typeof contentRef === 'function') contentRef(el);
+    else if (contentRef) (contentRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+  }, [contentRef]);
+
+  const updateScale = useCallback(() => {
+    if (!outerRef.current) return;
+    const containerWidth = outerRef.current.clientWidth;
+    let newScale = Math.min(1, containerWidth / A4_WIDTH);
+
+    if (fitToContainer) {
+      const containerHeight = outerRef.current.clientHeight;
+      if (containerHeight > 0) {
+        newScale = Math.min(newScale, containerHeight / A4_HEIGHT);
+      }
+      setOffsetY(Math.max(0, (containerHeight - A4_HEIGHT * newScale) / 2));
+    } else {
+      setOffsetY(0);
+    }
+
+    setScale(newScale);
+    setOffsetX(Math.max(0, (containerWidth - A4_WIDTH * newScale) / 2));
+  }, [fitToContainer]);
+
+  useEffect(() => {
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    if (outerRef.current) observer.observe(outerRef.current);
+    return () => observer.disconnect();
+  }, [updateScale]);
+
+  return (
+    <div
+      ref={outerRef}
+      className="overflow-hidden bg-slate-100 dark:bg-slate-900/50"
+      style={fitToContainer ? { width: '100%', height: '100%' } : { height: A4_HEIGHT * scale }}
+    >
+      <div
+        ref={setRefs}
+        className="bg-gradient-to-br from-white to-emerald-50 p-12 flex flex-col"
+        style={{
+          width: A4_WIDTH,
+          height: A4_HEIGHT,
+          transformOrigin: 'top left',
+          transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+});
 
 // Default empty contract data
 const getDefaultContractData = (): ContractData => ({
@@ -50,8 +117,11 @@ export const ContractBuilder: React.FC = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [showMahrSync, setShowMahrSync] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const formTopRef = useRef<HTMLDivElement>(null);
+  const certificateContentRef = useRef<HTMLDivElement>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  useScrollLock(showMahrSync || showResetConfirm);
+  useScrollLock(showMahrSync || showResetConfirm || showPreview);
   
   // Read mahr calculator data from localStorage
   const [silverPrice] = useLocalStorage<number>('mahr-silverPrice', 0.85);
@@ -98,12 +168,64 @@ export const ContractBuilder: React.FC = () => {
 
   const isFormValid = missingFields.length === 0;
 
+  // Gregorian to Hijri conversion (Kuwaiti algorithm, approximate)
+  const gregorianToHijri = useCallback((dateStr: string): string => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '';
+
+    const d = date.getDate();
+    const m = date.getMonth();
+    const y = date.getFullYear();
+
+    let jd = Math.floor((11 * y + 3) / 30) + 354 * y + 30 * m
+      - Math.floor((m - 1) / 2) + d + 1948440 - 385;
+
+    if (m < 2 || (m === 1 && d <= 0)) {
+      // do nothing for Jan/Feb edge
+    }
+
+    // Julian Day Number
+    const a = Math.floor((14 - (m + 1)) / 12);
+    const yy = y + 4800 - a;
+    const mm = (m + 1) + 12 * a - 3;
+    jd = d + Math.floor((153 * mm + 2) / 5) + 365 * yy
+      + Math.floor(yy / 4) - Math.floor(yy / 100) + Math.floor(yy / 400) - 32045;
+
+    // JD to Hijri
+    const l = jd - 1948440 + 10632;
+    const n = Math.floor((l - 1) / 10631);
+    const l2 = l - 10631 * n + 354;
+    const j = Math.floor((10985 - l2) / 5316) * Math.floor((50 * l2) / 17719)
+      + Math.floor(l2 / 5670) * Math.floor((43 * l2) / 15238);
+    const l3 = l2 - Math.floor((30 - j) / 15) * Math.floor((17719 * j) / 50)
+      - Math.floor(j / 16) * Math.floor((15238 * j) / 43) + 29;
+    const hm = Math.floor((24 * l3) / 709);
+    const hd = l3 - Math.floor((709 * hm) / 24);
+    const hy = 30 * n + j - 30;
+
+    const hijriMonths = [
+      'Muharram', 'Safar', 'Rabi al-Awwal', 'Rabi al-Thani',
+      'Jumada al-Ula', 'Jumada al-Thani', 'Rajab', 'Shaban',
+      'Ramadan', 'Shawwal', 'Dhul Qadah', 'Dhul Hijjah'
+    ];
+
+    return `${hd} ${hijriMonths[hm - 1] || ''} ${hy}`;
+  }, []);
+
   // Update a single field
   const updateField = (field: keyof ContractData, value: string | MahrPaymentType) => {
-    setContractData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setContractData(prev => {
+      const updated = { ...prev, [field]: value };
+      // Auto-populate Hijri date when Gregorian date changes
+      if (field === 'dateGregorian' && typeof value === 'string') {
+        const hijri = gregorianToHijri(value);
+        if (hijri) {
+          updated.dateHijri = hijri;
+        }
+      }
+      return updated;
+    });
   };
 
   // Handle generate click
@@ -122,6 +244,88 @@ export const ContractBuilder: React.FC = () => {
     setShowPreview(false);
     setShowValidationErrors(false);
   };
+
+  // Capture certificate as PNG data URL using html-to-image.
+  // Temporarily strips CSS transform & unclips ancestors so the element
+  // renders at its natural 794px width for a crisp, full-size capture.
+  const captureCertificatePng = useCallback(async (): Promise<string | null> => {
+    const el = certificateContentRef.current;
+    if (!el) return null;
+
+    // Save & override inline styles on el + ancestors
+    const saved: { el: HTMLElement; keys: Record<string, string> }[] = [];
+    const save = (target: HTMLElement, overrides: Record<string, string>) => {
+      const original: Record<string, string> = {};
+      for (const key of Object.keys(overrides)) {
+        original[key] = (target.style as any)[key] ?? '';
+        (target.style as any)[key] = overrides[key];
+      }
+      saved.push({ el: target, keys: original });
+    };
+
+    save(el, { transform: 'none', transformOrigin: '' });
+    let ancestor = el.parentElement;
+    while (ancestor) {
+      if (getComputedStyle(ancestor).position === 'fixed') break;
+      save(ancestor, { overflow: 'visible', height: 'auto', width: `${A4_WIDTH}px`, maxWidth: 'none' });
+      ancestor = ancestor.parentElement;
+    }
+    void el.offsetHeight; // force reflow
+
+    try {
+      return await toPng(el, {
+        pixelRatio: 2,
+        width: A4_WIDTH,
+        height: A4_HEIGHT,
+        backgroundColor: '#ffffff',
+        style: { transform: 'none', transformOrigin: '' },
+      });
+    } finally {
+      for (const { el: t, keys } of saved) {
+        for (const [k, v] of Object.entries(keys)) (t.style as any)[k] = v;
+      }
+    }
+  }, []);
+
+  // Download pixel-perfect PDF
+  const handleDownloadPdf = async () => {
+    if (isGeneratingPdf) return;
+    setIsGeneratingPdf(true);
+    try {
+      const dataUrl = await captureCertificatePng();
+      if (!dataUrl) return;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      // Load image to get dimensions
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise((resolve) => { img.onload = resolve; });
+      const imgRatio = img.height / img.width;
+      const fitHeight = pdfWidth * imgRatio;
+      if (fitHeight > pdfHeight) {
+        const scaledWidth = pdfHeight / imgRatio;
+        pdf.addImage(dataUrl, 'PNG', (pdfWidth - scaledWidth) / 2, 0, scaledWidth, pdfHeight);
+      } else {
+        pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, fitHeight);
+      }
+      const groomName = contractData.groomName || 'groom';
+      const brideName = contractData.brideName || 'bride';
+      pdf.save(`Nikkah_Certificate_${groomName}_${brideName}.pdf`);
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  // Close modal on Escape
+  useEffect(() => {
+    if (!showPreview) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowPreview(false); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showPreview]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 scroll-mt-24"
@@ -153,7 +357,7 @@ export const ContractBuilder: React.FC = () => {
       </div>
 
       {/* Form Card */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-3 md:p-5 mb-4 border border-slate-100 dark:border-slate-700">
+      <div ref={formTopRef} className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-3 md:p-5 mb-4 border border-slate-100 dark:border-slate-700">
         
         {/* Header Info Section */}
         <section className="mb-5">
@@ -175,7 +379,7 @@ export const ContractBuilder: React.FC = () => {
             <div>
               <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                 Date (Hijri)
-                <span className="text-slate-400 dark:text-slate-500 ml-1.5 font-normal normal-case">Subject to moon sighting</span>
+                <span className="text-slate-400 dark:text-slate-500 ml-1.5 font-normal normal-case">Auto-calculated · editable</span>
               </label>
               <input
                 type="text"
@@ -569,237 +773,139 @@ export const ContractBuilder: React.FC = () => {
         </div>
       </div>
 
-      {/* Certificate Preview Controls (shown inline when preview is active) */}
+      {/* Certificate Preview Modal */}
       {showPreview && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mb-4">
-          <div className="bg-slate-50 dark:bg-slate-700 p-3 flex justify-between items-center">
-            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Certificate Preview</h3>
-            <div className="flex gap-2">
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex flex-col" onClick={() => setShowPreview(false)}>
+          {/* Top bar */}
+          <div className="flex items-center justify-between gap-2 px-3 py-2.5 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-md border-b border-white/10 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wide whitespace-nowrap">Preview</h3>
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
-                onClick={() => window.print()}
-                className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-all flex items-center gap-1.5"
+                onClick={handleDownloadPdf}
+                disabled={isGeneratingPdf}
+                className="h-8 px-2.5 sm:px-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white font-bold rounded-lg text-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
               >
-                Print Certificate
+                {isGeneratingPdf ? 'Generating...' : 'Download PDF'}
               </button>
               <button
-                onClick={() => setShowPreview(false)}
-                className="h-8 px-3 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 text-slate-600 dark:text-slate-200 font-bold rounded-lg text-xs transition-all"
+                onClick={() => {
+                  setShowPreview(false);
+                  setTimeout(() => formTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                }}
+                className="h-8 px-2.5 sm:px-3 bg-white/20 hover:bg-white/30 text-white font-bold rounded-lg text-xs transition-all whitespace-nowrap hidden sm:inline-block"
               >
                 Edit Form
               </button>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="h-8 w-8 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
-          
-          {/* Inline preview of certificate (visible on screen) */}
-          <div className="p-8 md:p-12 bg-gradient-to-br from-white to-emerald-50">
-            {/* Decorative Border */}
-            <div className="border-4 border-double border-emerald-600 p-8 md:p-12">
-              {/* Header */}
-              <div className="text-center mb-10">
-                <div className="text-emerald-600 text-5xl mb-4">﷽</div>
-                <h1 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 mb-2">
-                  Nikkah Certificate
-                </h1>
-                <p className="text-emerald-700 font-medium">شهادة النكاح</p>
-              </div>
 
-              {/* Date & Location */}
-              <div className="text-center mb-10 pb-8 border-b border-emerald-200">
-                <p className="text-slate-600 mb-2">
-                  <span className="font-semibold">Date:</span> {contractData.dateGregorian ? new Date(contractData.dateGregorian).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
-                  {contractData.dateHijri && <span className="text-emerald-600 ml-2">({contractData.dateHijri})</span>}
-                </p>
-                <p className="text-slate-600">
-                  <span className="font-semibold">Location:</span> {contractData.location || '—'}
-                </p>
-              </div>
-
-              {/* Main Content */}
-              <div className="text-center mb-10 max-w-2xl mx-auto">
-                <p className="text-slate-700 leading-relaxed mb-6">
-                  This is to certify that the Islamic marriage contract (Nikkah) has been solemnized between:
-                </p>
-                
-                {/* The Couple */}
-                <div className="grid md:grid-cols-2 gap-8 mb-8">
-                  {/* Groom */}
-                  <div className="bg-teal-50 rounded-2xl p-6 border border-teal-200">
-                    <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-2">The Groom</p>
-                    <p className="text-xl font-serif font-bold text-slate-800">{contractData.groomName || '—'}</p>
-                    <p className="text-sm text-slate-600 mt-1">Son of {contractData.groomFatherName || '—'}</p>
-                  </div>
-                  
-                  {/* Bride */}
-                  <div className="bg-rose-50 rounded-2xl p-6 border border-rose-200">
-                    <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-2">The Bride</p>
-                    <p className="text-xl font-serif font-bold text-slate-800">{contractData.brideName || '—'}</p>
-                    <p className="text-sm text-slate-600 mt-1">Daughter of {contractData.brideFatherName || '—'}</p>
-                  </div>
-                </div>
-
-                {/* Mahr */}
-                <div className="bg-violet-50 rounded-2xl p-6 border border-violet-200 mb-8">
-                  <p className="text-xs font-bold text-violet-600 uppercase tracking-widest mb-2">The Mahr (Dower)</p>
-                  <p className="text-2xl font-bold text-slate-800">{contractData.mahrAmount || '—'}</p>
-                  <p className="text-sm text-violet-600 mt-1">
-                    {contractData.mahrType === 'prompt' ? 'Prompt (Mu\'ajjal) - Payable at time of Nikkah' : 'Deferred (Mu\'wajjal) - Payable upon demand'}
-                  </p>
-                </div>
-
-                <p className="text-slate-700 leading-relaxed">
-                  The marriage was conducted in accordance with Islamic Shariah, with the mutual consent of both parties and in the presence of the witnesses named below.
-                </p>
-              </div>
-
-              {/* Witnesses & Signatures */}
-              <div className="grid md:grid-cols-2 gap-6 pt-8 border-t border-emerald-200">
-                <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Witnesses</p>
-                  <div className="space-y-4">
-                    <div className="border-b border-slate-200 pb-2">
-                      <p className="text-sm text-slate-500">Witness 1</p>
-                      <p className="font-semibold text-slate-800">{contractData.witness1Name || '—'}</p>
-                    </div>
-                    <div className="border-b border-slate-200 pb-2">
-                      <p className="text-sm text-slate-500">Witness 2</p>
-                      <p className="font-semibold text-slate-800">{contractData.witness2Name || '—'}</p>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Officials</p>
-                  <div className="space-y-4">
-                    <div className="border-b border-slate-200 pb-2">
-                      <p className="text-sm text-slate-500">Wali (Bride's Guardian)</p>
-                      <p className="font-semibold text-slate-800">{contractData.waliName || '—'}</p>
-                    </div>
-                    {contractData.officiantName && (
-                      <div className="border-b border-slate-200 pb-2">
-                        <p className="text-sm text-slate-500">Officiant (Imam)</p>
-                        <p className="font-semibold text-slate-800">{contractData.officiantName}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="text-center mt-10 pt-8 border-t border-emerald-200">
-                <p className="text-emerald-600 text-sm font-medium italic">
-                  "And among His signs is that He created for you mates from among yourselves, that you may dwell in tranquility with them, and He has put love and mercy between your hearts." - Quran 30:21
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Print Portal - Certificate rendered outside #root for clean printing */}
-      {showPreview && (
-        <PrintPortal>
-          <div id="certificate-preview" className="bg-white">
-            <div className="p-8 md:p-12 bg-white">
-              {/* Decorative Border */}
-              <div className="border-4 border-double border-emerald-600 p-8 md:p-12">
-                {/* Header */}
-                <div className="text-center mb-10">
-                  <div className="text-emerald-600 text-5xl mb-4">﷽</div>
-                  <h1 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 mb-2">
-                    Nikkah Certificate
-                  </h1>
-                  <p className="text-emerald-700 font-medium">شهادة النكاح</p>
-                </div>
-
-                {/* Date & Location */}
-                <div className="text-center mb-10 pb-8 border-b border-emerald-200">
-                  <p className="text-slate-600 mb-2">
-                    <span className="font-semibold">Date:</span> {contractData.dateGregorian ? new Date(contractData.dateGregorian).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
-                    {contractData.dateHijri && <span className="text-emerald-600 ml-2">({contractData.dateHijri})</span>}
-                  </p>
-                  <p className="text-slate-600">
-                    <span className="font-semibold">Location:</span> {contractData.location || '—'}
-                  </p>
-                </div>
-
-                {/* Main Content */}
-                <div className="text-center mb-10 max-w-2xl mx-auto">
-                  <p className="text-slate-700 leading-relaxed mb-6">
-                    This is to certify that the Islamic marriage contract (Nikkah) has been solemnized between:
-                  </p>
-                  
-                  {/* The Couple */}
-                  <div className="grid grid-cols-2 gap-8 mb-8">
-                    {/* Groom */}
-                    <div className="bg-teal-50 rounded-2xl p-6 border border-teal-200">
-                      <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-2">The Groom</p>
-                      <p className="text-xl font-serif font-bold text-slate-800">{contractData.groomName || '—'}</p>
-                      <p className="text-sm text-slate-600 mt-1">Son of {contractData.groomFatherName || '—'}</p>
-                    </div>
-                    
-                    {/* Bride */}
-                    <div className="bg-rose-50 rounded-2xl p-6 border border-rose-200">
-                      <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-2">The Bride</p>
-                      <p className="text-xl font-serif font-bold text-slate-800">{contractData.brideName || '—'}</p>
-                      <p className="text-sm text-slate-600 mt-1">Daughter of {contractData.brideFatherName || '—'}</p>
-                    </div>
+          {/* Certificate area - pb-20 accounts for mobile nav bar */}
+          <div className="flex-1 min-h-0 p-4 pb-30 md:p-6 md:pb-6" onClick={(e) => e.stopPropagation()}>
+              <A4PreviewContainer ref={certificateContentRef} fitToContainer>
+                {/* Decorative Border - flex-1 fills A4 height, flex-col distributes space */}
+                <div className="border-4 border-double border-emerald-600 p-8 flex-1 flex flex-col justify-between">
+                  {/* Header */}
+                  <div className="text-center">
+                    <div className="text-emerald-600 text-5xl mb-3">﷽</div>
+                    <h1 className="text-4xl font-serif font-bold text-slate-800 mb-1">
+                      Nikkah Certificate
+                    </h1>
+                    <p className="text-emerald-700 font-medium">شهادة النكاح</p>
                   </div>
 
-                  {/* Mahr */}
-                  <div className="bg-violet-50 rounded-2xl p-6 border border-violet-200 mb-8">
-                    <p className="text-xs font-bold text-violet-600 uppercase tracking-widest mb-2">The Mahr (Dower)</p>
-                    <p className="text-2xl font-bold text-slate-800">{contractData.mahrAmount || '—'}</p>
-                    <p className="text-sm text-violet-600 mt-1">
-                      {contractData.mahrType === 'prompt' ? 'Prompt (Mu\'ajjal) - Payable at time of Nikkah' : 'Deferred (Mu\'wajjal) - Payable upon demand'}
+                  {/* Date & Location */}
+                  <div className="text-center pb-4 border-b border-emerald-200">
+                    <p className="text-slate-600 mb-1.5">
+                      <span className="font-semibold">Date:</span> {contractData.dateGregorian ? new Date(contractData.dateGregorian).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
+                      {contractData.dateHijri && <span className="text-emerald-600 ml-2">({contractData.dateHijri})</span>}
+                    </p>
+                    <p className="text-slate-600">
+                      <span className="font-semibold">Location:</span> {contractData.location || '—'}
                     </p>
                   </div>
 
-                  <p className="text-slate-700 leading-relaxed">
-                    The marriage was conducted in accordance with Islamic Shariah, with the mutual consent of both parties and in the presence of the witnesses named below.
-                  </p>
-                </div>
-
-                {/* Witnesses & Signatures */}
-                <div className="grid grid-cols-2 gap-6 pt-8 border-t border-emerald-200">
-                  <div>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Witnesses</p>
-                    <div className="space-y-4">
-                      <div className="border-b border-slate-200 pb-2">
-                        <p className="text-sm text-slate-500">Witness 1</p>
-                        <p className="font-semibold text-slate-800">{contractData.witness1Name || '—'}</p>
+                  {/* Main Content */}
+                  <div className="text-center">
+                    <p className="text-slate-700 leading-relaxed mb-5">
+                      This is to certify that the Islamic marriage contract (Nikkah) has been solemnized between:
+                    </p>
+                    
+                    {/* The Couple */}
+                    <div className="grid grid-cols-2 gap-6 mb-5">
+                      <div className="bg-teal-50 rounded-2xl p-5 border border-teal-200">
+                        <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-1.5">The Groom</p>
+                        <p className="text-xl font-serif font-bold text-slate-800">{contractData.groomName || '—'}</p>
+                        <p className="text-sm text-slate-600 mt-1">Son of {contractData.groomFatherName || '—'}</p>
                       </div>
-                      <div className="border-b border-slate-200 pb-2">
-                        <p className="text-sm text-slate-500">Witness 2</p>
-                        <p className="font-semibold text-slate-800">{contractData.witness2Name || '—'}</p>
+                      <div className="bg-rose-50 rounded-2xl p-5 border border-rose-200">
+                        <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-1.5">The Bride</p>
+                        <p className="text-xl font-serif font-bold text-slate-800">{contractData.brideName || '—'}</p>
+                        <p className="text-sm text-slate-600 mt-1">Daughter of {contractData.brideFatherName || '—'}</p>
                       </div>
                     </div>
+
+                    {/* Mahr */}
+                    <div className="bg-violet-50 rounded-2xl p-5 border border-violet-200 mb-5">
+                      <p className="text-xs font-bold text-violet-600 uppercase tracking-widest mb-1.5">The Mahr (Dower)</p>
+                      <p className="text-2xl font-bold text-slate-800">{contractData.mahrAmount || '—'}</p>
+                      <p className="text-sm text-violet-600 mt-1">
+                        {contractData.mahrType === 'prompt' ? 'Prompt (Mu\'ajjal) - Payable at time of Nikkah' : 'Deferred (Mu\'wajjal) - Payable upon demand'}
+                      </p>
+                    </div>
+
+                    <p className="text-slate-700 leading-relaxed">
+                      The marriage was conducted in accordance with Islamic Shariah, with the mutual consent of both parties and in the presence of the witnesses named below.
+                    </p>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Officials</p>
-                    <div className="space-y-4">
-                      <div className="border-b border-slate-200 pb-2">
-                        <p className="text-sm text-slate-500">Wali (Bride's Guardian)</p>
-                        <p className="font-semibold text-slate-800">{contractData.waliName || '—'}</p>
-                      </div>
-                      {contractData.officiantName && (
+
+                  {/* Witnesses & Signatures */}
+                  <div className="grid grid-cols-2 gap-6 pt-4 border-t border-emerald-200">
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Witnesses</p>
+                      <div className="space-y-3">
                         <div className="border-b border-slate-200 pb-2">
-                          <p className="text-sm text-slate-500">Officiant (Imam)</p>
-                          <p className="font-semibold text-slate-800">{contractData.officiantName}</p>
+                          <p className="text-sm text-slate-500">Witness 1</p>
+                          <p className="font-semibold text-slate-800">{contractData.witness1Name || '—'}</p>
                         </div>
-                      )}
+                        <div className="border-b border-slate-200 pb-2">
+                          <p className="text-sm text-slate-500">Witness 2</p>
+                          <p className="font-semibold text-slate-800">{contractData.witness2Name || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Officials</p>
+                      <div className="space-y-3">
+                        <div className="border-b border-slate-200 pb-2">
+                          <p className="text-sm text-slate-500">Wali (Bride's Guardian)</p>
+                          <p className="font-semibold text-slate-800">{contractData.waliName || '—'}</p>
+                        </div>
+                        {contractData.officiantName && (
+                          <div className="border-b border-slate-200 pb-2">
+                            <p className="text-sm text-slate-500">Officiant (Imam)</p>
+                            <p className="font-semibold text-slate-800">{contractData.officiantName}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Footer */}
-                <div className="text-center mt-10 pt-8 border-t border-emerald-200">
-                  <p className="text-emerald-600 text-sm font-medium italic">
-                    "And among His signs is that He created for you mates from among yourselves, that you may dwell in tranquility with them, and He has put love and mercy between your hearts." - Quran 30:21
-                  </p>
+                  {/* Footer */}
+                  <div className="text-center pt-4 border-t border-emerald-200">
+                    <p className="text-emerald-600 text-sm font-medium italic">
+                      "And among His signs is that He created for you mates from among yourselves, that you may dwell in tranquility with them, and He has put love and mercy between your hearts." - Quran 30:21
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </A4PreviewContainer>
           </div>
-        </PrintPortal>
+        </div>
       )}
 
       {/* Reset Confirmation Modal */}
