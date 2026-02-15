@@ -30,8 +30,11 @@ export interface CategoryExpense {
   amountPaid?: number; // How much has been paid so far
   paymentStatus: PaymentStatus;
   vendor?: string; // Vendor/supplier name
+  vendorPhone?: string; // Vendor phone number
+  vendorEmail?: string; // Vendor email address
   notes?: string; // Any notes
   dueDate?: string; // Payment due date
+  receiptBase64?: string; // Receipt image stored as base64 data URL
 }
 
 // Budget templates for quick setup

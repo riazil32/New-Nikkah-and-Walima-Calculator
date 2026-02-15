@@ -83,7 +83,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full h-8 px-2.5 pr-7 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white text-left truncate ${isOpen ? 'border-emerald-400 dark:border-emerald-400' : 'focus:border-emerald-400'}`}
+        className={`w-full h-8 px-2.5 pr-7 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white text-left truncate ${isOpen ? 'border-emerald-400 dark:border-emerald-400' : 'focus:border-emerald-400'}`}
       >
         <span className={displayLabel ? '' : 'text-slate-400'}>
           {displayLabel || placeholder}
@@ -93,9 +93,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200/80 dark:border-slate-600/80 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] overflow-hidden">
+        <div className="absolute z-50 w-full mt-1 bg-white/95 dark:bg-zinc-800/95 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-600/80 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] overflow-hidden">
           {/* Search Input */}
-          <div className="p-1.5 border-b border-slate-200 dark:border-slate-700">
+          <div className="p-1.5 border-b border-slate-200 dark:border-zinc-700">
             <input
               ref={inputRef}
               type="text"
@@ -103,7 +103,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={searchPlaceholder}
-              className="w-full px-2.5 h-7 bg-slate-50 dark:bg-slate-700 rounded-md text-xs outline-none focus:ring-1 focus:ring-emerald-400 text-slate-800 dark:text-white placeholder:text-slate-400"
+              className="w-full px-2.5 h-7 bg-slate-50 dark:bg-zinc-700 rounded-md text-xs outline-none focus:ring-1 focus:ring-emerald-400 text-slate-800 dark:text-white placeholder:text-slate-400"
             />
           </div>
 

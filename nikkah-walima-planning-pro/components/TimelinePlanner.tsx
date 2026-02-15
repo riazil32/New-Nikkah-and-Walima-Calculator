@@ -16,10 +16,12 @@ import {
 import { DatePicker } from './DatePicker';
 import { TimePicker } from './TimePicker';
 import { EventSettingsModal } from './EventSettingsModal';
-import { Clock, Plus, Trash, Edit, AlertTriangle, MapPin, RefreshCw, X, Info, ChevronDown, SettingsIcon } from './Icons';
+import { Clock, Plus, Trash, Edit, AlertTriangle, MapPin, RefreshCw, X, Info, ChevronDown, SettingsIcon, Calculator } from './Icons';
 import { Combobox } from './Combobox';
 import { COUNTRIES, CALCULATION_METHODS, ASR_SCHOOLS, getAutoCalculationMethod, getAutoAsrSchool } from '../constants';
 import { CustomSelect } from './CustomSelect';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Default wedding events (fallback if guest manager hasn't been configured)
 const DEFAULT_WEDDING_EVENTS: WeddingEventConfig[] = [
@@ -332,6 +334,7 @@ export const TimelinePlanner: React.FC = () => {
   // Read/write shared events config from Guest Manager (single source of truth)
   const [guestManagerData, setGuestManagerData] = useLocalStorage<GuestManagerData | null>('guest-manager-data', null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   // Get enabled events from Guest Manager, or use defaults
   const enabledEvents = useMemo(() => {
@@ -581,22 +584,281 @@ export const TimelinePlanner: React.FC = () => {
     return items;
   }, [prayerTimes, timelineData.events, sunrise, islamicMidnight, asrMakruhStart]);
   
-  // Load a timeline template
+  // Load a timeline template, substituting actual prayer times when available.
+  // Prayer break events are identified by name containing "Prayer Break".
+  // When actual times are available, the prayer break time is set to the real
+  // prayer time and surrounding events are shifted to maintain the schedule flow.
   const loadTemplate = (templateId: 'afternoonNikkah' | 'eveningWalima') => {
     const template = TIMELINE_TEMPLATES[templateId];
     if (!template) return;
-    
-    const generateId = () => Math.random().toString(36).substring(2, 9);
-    
-    const newEvents: WeddingEvent[] = template.events.map(e => ({
-      ...e,
-      id: generateId()
-    }));
-    
+
+    const genId = () => Math.random().toString(36).substring(2, 9);
+
+    // Build a map of actual prayer times keyed by lowercase name
+    const actualPrayerMap = new Map<string, string>();
+    prayerTimes.forEach(pt => {
+      actualPrayerMap.set(pt.name.toLowerCase(), pt.time); // HH:MM 24h
+    });
+
+    // Clone template events and adjust prayer break times
+    let events = template.events.map(e => ({ ...e, id: genId() }));
+
+    // For each prayer break event, try to match it to an actual prayer time
+    const prayerKeywords: Record<string, string> = {
+      'maghrib': 'maghrib',
+      'isha': 'isha',
+      'dhuhr': 'dhuhr',
+      'jummah': 'jummah',
+      'asr': 'asr',
+      'fajr': 'fajr',
+    };
+
+    // Collect time shifts needed from prayer break adjustments
+    const shifts: { index: number; delta: number }[] = [];
+
+    events = events.map((evt, idx) => {
+      if (!evt.name.toLowerCase().includes('prayer')) return evt;
+
+      // Try to identify which prayer this break is for
+      const nameLower = evt.name.toLowerCase();
+      let matchedPrayer: string | null = null;
+      for (const [keyword, prayerName] of Object.entries(prayerKeywords)) {
+        if (nameLower.includes(keyword)) {
+          matchedPrayer = prayerName;
+          break;
+        }
+      }
+
+      // For generic "Prayer Break" (afternoon template), infer from time
+      if (!matchedPrayer) {
+        const evtMins = timeToMinutes(evt.startTime);
+        // Find the prayer whose time is closest to the template's hardcoded time
+        let bestMatch = '';
+        let bestDist = Infinity;
+        actualPrayerMap.forEach((time, name) => {
+          const dist = Math.abs(timeToMinutes(time) - evtMins);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestMatch = name;
+          }
+        });
+        if (bestMatch && bestDist < 180) { // within 3 hours
+          matchedPrayer = bestMatch;
+        }
+      }
+
+      // Also check for Jummah (replaces Dhuhr)
+      if (matchedPrayer === 'dhuhr' && actualPrayerMap.has('jummah')) {
+        matchedPrayer = 'jummah';
+      }
+
+      const actualTime = matchedPrayer ? actualPrayerMap.get(matchedPrayer) : null;
+      if (!actualTime) return evt;
+
+      // Calculate shift: how much earlier/later the actual prayer is vs hardcoded
+      const hardcodedMins = timeToMinutes(evt.startTime);
+      const actualMins = timeToMinutes(actualTime);
+      const delta = actualMins - hardcodedMins;
+      const duration = timeToMinutes(evt.endTime) - hardcodedMins;
+
+      shifts.push({ index: idx, delta });
+
+      return {
+        ...evt,
+        startTime: actualTime,
+        endTime: minutesToTime(actualMins + duration),
+      };
+    });
+
+    // If prayer times shifted, also shift the events that follow each prayer break
+    // to maintain the flow (avoid overlaps or large gaps)
+    if (shifts.length > 0) {
+      // Process shifts from last to first to avoid cascading index issues
+      const sortedShifts = [...shifts].sort((a, b) => b.index - a.index);
+      for (const { index, delta } of sortedShifts) {
+        if (delta === 0) continue;
+        // Shift all subsequent events until the next prayer break (or end)
+        for (let i = index + 1; i < events.length; i++) {
+          // Stop shifting when we hit another prayer break (it has its own anchor)
+          if (events[i].name.toLowerCase().includes('prayer') && i !== index) break;
+          const newStart = timeToMinutes(events[i].startTime) + delta;
+          const dur = timeToMinutes(events[i].endTime) - timeToMinutes(events[i].startTime);
+          events[i] = {
+            ...events[i],
+            startTime: minutesToTime(newStart),
+            endTime: minutesToTime(newStart + dur),
+          };
+        }
+      }
+    }
+
+    const newEvents: WeddingEvent[] = events;
+
     setTimelineData(prev => ({
       ...prev,
       events: newEvents
     }));
+  };
+
+  // Export timeline as professional PDF schedule
+  const handleDownloadPdf = async () => {
+    if (isGeneratingPdf) return;
+    setIsGeneratingPdf(true);
+
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 14;
+      const contentWidth = pageWidth - margin * 2;
+      let y = margin;
+
+      // Active event info
+      const eventName = enabledEvents.find(e => e.id === activeEventId)?.name || 'Wedding';
+      const eventIcon = enabledEvents.find(e => e.id === activeEventId)?.icon || '💍';
+      const dateStr = timelineData.date
+        ? new Date(timelineData.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+        : 'Date TBD';
+      const locationStr = [timelineData.city, timelineData.country].filter(Boolean).join(', ') || 'Location TBD';
+
+      // Header banner
+      pdf.setFillColor(16, 40, 36);
+      pdf.rect(0, 0, pageWidth, 40, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(22);
+      pdf.text(`${eventIcon} ${eventName} Schedule`, margin, 17);
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(dateStr, margin, 26);
+      pdf.text(locationStr, margin, 33);
+      if (hijriDate) {
+        pdf.setFontSize(8);
+        pdf.text(hijriDate, pageWidth - margin, 33, { align: 'right' });
+      }
+      y = 48;
+
+      // Prayer times summary (if available)
+      if (prayerTimes.length > 0) {
+        pdf.setFillColor(240, 235, 225);
+        pdf.roundedRect(margin, y, contentWidth, 10, 2, 2, 'F');
+        pdf.setTextColor(80, 60, 30);
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'bold');
+        const prayerStr = prayerTimes.map(p => `${p.name}: ${formatTimeDisplay(p.time)}`).join('   |   ');
+        pdf.text(`🤲 Prayer Times: ${prayerStr}`, margin + 3, y + 6.5);
+        y += 14;
+      }
+
+      // Build combined timeline data
+      const timelineItems: { time: string; name: string; endTime?: string; type: 'prayer' | 'event'; icon: string; conflictWarning?: string }[] = [];
+
+      // Add prayer times
+      prayerTimes.forEach(pt => {
+        timelineItems.push({
+          time: pt.time,
+          name: pt.name,
+          type: 'prayer',
+          icon: '🤲',
+        });
+      });
+
+      // Add events
+      timelineData.events.forEach(evt => {
+        const conflicts = checkConflicts(
+          evt, prayerTimes, sunrise,
+          islamicMidnight || calculateFiqhTimes(prayerTimes).islamicMidnight,
+          asrMakruhStart || calculateFiqhTimes(prayerTimes).asrMakruhStart
+        );
+        timelineItems.push({
+          time: evt.startTime,
+          name: evt.name,
+          endTime: evt.endTime,
+          type: 'event',
+          icon: evt.icon || '📌',
+          conflictWarning: conflicts.length > 0 ? conflicts.map(c => c.warningMessage || `${c.prayer.name} conflict`).join('; ') : undefined,
+        });
+      });
+
+      // Sort by time
+      timelineItems.sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+
+      // Render as styled table
+      autoTable(pdf, {
+        startY: y,
+        margin: { left: margin, right: margin },
+        head: [['Time', '', 'Activity', 'Duration', 'Notes']],
+        body: timelineItems.map(item => {
+          const duration = item.endTime
+            ? `${timeToMinutes(item.endTime) - timeToMinutes(item.time)} min`
+            : '-';
+          return [
+            formatTimeDisplay(item.time),
+            item.icon,
+            item.name + (item.endTime ? ` (until ${formatTimeDisplay(item.endTime)})` : ''),
+            duration,
+            item.conflictWarning || (item.type === 'prayer' ? 'Prayer Time' : ''),
+          ];
+        }),
+        theme: 'grid',
+        headStyles: {
+          fillColor: [30, 60, 55],
+          textColor: [255, 255, 255],
+          fontSize: 8,
+          fontStyle: 'bold',
+          cellPadding: 2.5,
+        },
+        bodyStyles: {
+          fontSize: 8,
+          cellPadding: 2.2,
+          textColor: [40, 40, 40],
+        },
+        alternateRowStyles: { fillColor: [245, 248, 250] },
+        columnStyles: {
+          0: { cellWidth: 22, fontStyle: 'bold' },
+          1: { cellWidth: 8, halign: 'center' },
+          2: { cellWidth: contentWidth * 0.35 },
+          3: { cellWidth: 20, halign: 'center' },
+          4: { cellWidth: contentWidth - 22 - 8 - contentWidth * 0.35 - 20 },
+        },
+        didParseCell: (cellData) => {
+          // Style prayer rows differently
+          if (cellData.section === 'body') {
+            const rowIdx = cellData.row.index;
+            const item = timelineItems[rowIdx];
+            if (item?.type === 'prayer') {
+              cellData.cell.styles.fillColor = [255, 248, 235];
+              cellData.cell.styles.textColor = [140, 90, 20];
+              cellData.cell.styles.fontStyle = 'bold';
+            }
+            // Highlight conflicts
+            if (cellData.column.index === 4 && item?.conflictWarning) {
+              cellData.cell.styles.textColor = [180, 60, 0];
+              cellData.cell.styles.fontSize = 7;
+            }
+          }
+        },
+      });
+
+      // Footer on all pages
+      const totalPages = pdf.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFillColor(245, 245, 245);
+        pdf.rect(0, pageHeight - 10, pageWidth, 10, 'F');
+        pdf.setTextColor(140, 140, 140);
+        pdf.setFontSize(7);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text('Nikkah & Walima Planning Pro', margin, pageHeight - 4);
+        pdf.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 4, { align: 'right' });
+      }
+
+      pdf.save(`${eventName.toLowerCase().replace(/\s+/g, '-')}-schedule-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      console.error('Timeline PDF generation failed:', err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   // Add/Update event
@@ -781,7 +1043,7 @@ export const TimelinePlanner: React.FC = () => {
   const renderInlineForm = (compact: boolean = false) => (
     <div
       ref={!compact ? inlineFormRef : undefined}
-      className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-all"
+      className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-slate-200 dark:border-zinc-700 transition-all"
     >
       <div className="p-3">
         {/* Header */}
@@ -810,7 +1072,7 @@ export const TimelinePlanner: React.FC = () => {
                     if (compact) setInlineFormPosition('top');
                     applyPresetToForm(preset);
                   }}
-                  className="px-2 py-1 text-[11px] bg-slate-100 dark:bg-slate-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-slate-600 dark:text-slate-300 rounded-md transition-all flex items-center gap-1"
+                  className="px-2 py-1 text-[11px] bg-slate-100 dark:bg-zinc-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-slate-600 dark:text-slate-300 rounded-md transition-all flex items-center gap-1"
                 >
                   <span className="text-xs">{preset.icon}</span>
                   <span>{preset.name}</span>
@@ -831,10 +1093,10 @@ export const TimelinePlanner: React.FC = () => {
             onChange={(e) => setEventForm(prev => ({ ...prev, name: e.target.value }))}
             onFocus={() => { if (compact) setInlineFormPosition('top'); }}
             placeholder="e.g., Nikkah Ceremony"
-            className={`w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 ${
+            className={`w-full px-2.5 h-8 bg-slate-50 dark:bg-zinc-900/50 border rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 ${
               formTouched && !eventForm.name 
                 ? 'border-red-400 dark:border-red-500' 
-                : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
+                : 'border-slate-200 dark:border-zinc-600 focus:border-emerald-400'
             }`}
           />
           {formTouched && !eventForm.name && (
@@ -893,7 +1155,7 @@ export const TimelinePlanner: React.FC = () => {
                 }}
                 placeholder="Any notes about this event..."
                 rows={1}
-                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 resize-none overflow-hidden"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 resize-none overflow-hidden"
                 style={{ minHeight: '32px' }}
               />
             </div>
@@ -907,7 +1169,7 @@ export const TimelinePlanner: React.FC = () => {
               </button>
               <button
                 onClick={closeInlineForm}
-                className="h-8 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg transition-all"
+                className="h-8 px-3 bg-slate-100 dark:bg-zinc-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg transition-all"
               >
                 Cancel
               </button>
@@ -928,13 +1190,25 @@ export const TimelinePlanner: React.FC = () => {
       }}
     >
       {/* Header */}
-      <div className="text-center mb-6">
+      <div className="text-center mb-6 relative">
         <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">
           Prayer-Aware Timeline
         </h2>
         <p className="text-slate-600 dark:text-slate-400 italic">
           Schedule your wedding events around the sacred times of Salah
         </p>
+        {/* Download PDF Button */}
+        {sortedTimeline.length > 0 && (
+          <button
+            onClick={handleDownloadPdf}
+            disabled={isGeneratingPdf}
+            className="absolute right-0 top-0 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+            title="Download Schedule as PDF"
+          >
+            <Calculator className="w-4 h-4" />
+            <span className="hidden sm:inline">{isGeneratingPdf ? 'Generating...' : 'Download PDF'}</span>
+          </button>
+        )}
       </div>
 
       {/* Event Tabs - Only show if multiple events enabled */}
@@ -958,7 +1232,7 @@ export const TimelinePlanner: React.FC = () => {
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                   activeEventId === event.id
                     ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                    : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-zinc-700'
                 }`}
               >
                 <span className="text-sm">{event.icon}</span>
@@ -992,7 +1266,7 @@ export const TimelinePlanner: React.FC = () => {
       </div>
 
       {/* Location & Date Card */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-3 md:p-4 mb-4 border border-slate-200 dark:border-slate-700">
+      <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm p-3 md:p-4 mb-4 border border-slate-200 dark:border-zinc-700">
         
         {/* Collapsed Summary Bar - shown when prayer times loaded and form collapsed */}
         {hasPrayerTimes && !isFormExpanded ? (
@@ -1057,7 +1331,7 @@ export const TimelinePlanner: React.FC = () => {
                   value={timelineData.city}
                   onChange={(e) => updateField('city', e.target.value)}
                   placeholder="e.g., London"
-                  className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                  className="w-full px-2.5 h-8 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
                 />
               </div>
               <div>
@@ -1086,7 +1360,7 @@ export const TimelinePlanner: React.FC = () => {
 
             {/* Advanced Settings (Collapsible) */}
             {showAdvanced && (
-              <div className="mb-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-3">
+              <div className="mb-3 p-3 bg-slate-50 dark:bg-zinc-700/50 rounded-lg space-y-3">
                 <div className="grid md:grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
@@ -1126,7 +1400,7 @@ export const TimelinePlanner: React.FC = () => {
               className={`w-full h-8 px-4 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 hasLocation && !loading
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                  : 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
+                  : 'bg-slate-200 dark:bg-zinc-700 text-slate-400 cursor-not-allowed'
               }`}
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -1170,7 +1444,7 @@ export const TimelinePlanner: React.FC = () => {
               /* Collapsed placeholder when form is active elsewhere */
               <button
                 onClick={() => { closeInlineForm(); setInlineFormPosition('top'); }}
-                className="w-full h-8 px-3 bg-white dark:bg-slate-800 border border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-400 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs font-semibold"
+                className="w-full h-8 px-3 bg-white dark:bg-zinc-800 border border-dashed border-slate-300 dark:border-zinc-600 hover:border-emerald-400 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Add Event
@@ -1179,7 +1453,7 @@ export const TimelinePlanner: React.FC = () => {
           </div>
 
           {/* Timeline */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-3 md:p-4 border border-slate-200 dark:border-slate-700">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm p-3 md:p-4 border border-slate-200 dark:border-zinc-700">
             <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
               <Clock className="w-4 h-4 text-emerald-600" />
               Your Wedding Timeline
@@ -1235,7 +1509,7 @@ export const TimelinePlanner: React.FC = () => {
             ) : (
               <div className="relative">
                 {/* Vertical line */}
-                <div className="absolute left-4 md:left-6 top-0 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-700" />
+                <div className="absolute left-4 md:left-6 top-0 bottom-0 w-0.5 bg-slate-200 dark:bg-zinc-700" />
 
                 {/* Timeline items */}
                 <div className="space-y-2">
@@ -1292,7 +1566,7 @@ export const TimelinePlanner: React.FC = () => {
                         renderInlineForm(false)
                       ) : (
                         // Custom Event Card
-                        <div className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl p-3">
+                        <div className="bg-slate-50 dark:bg-zinc-700 border border-slate-200 dark:border-zinc-600 rounded-xl p-3">
                           {/* Conflict Alert Banners - distinct style from event cards */}
                           {(item as any).conflictInfo?.length > 0 && (
                             (item as any).isPrayerEvent ? (
@@ -1397,7 +1671,7 @@ export const TimelinePlanner: React.FC = () => {
                       <div className="relative pl-12 md:pl-16 py-1.5">
                         <button
                           onClick={() => openInlineFormAtGap(index, gapInfo.startTime, nextEventStartTime)}
-                          className="w-full py-1.5 border border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs"
+                          className="w-full py-1.5 border border-dashed border-slate-300 dark:border-zinc-600 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           Add event here ({Math.floor(gapInfo.gap / 60) > 0 ? `${Math.floor(gapInfo.gap / 60)}h ` : ''}{gapInfo.gap % 60 > 0 ? `${gapInfo.gap % 60}m` : ''} gap)
@@ -1426,7 +1700,7 @@ export const TimelinePlanner: React.FC = () => {
                         ) : (
                           <button
                             onClick={() => openInlineFormAtGap(lastIndex, lastEndTime)}
-                            className="w-full py-1.5 border border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs"
+                            className="w-full py-1.5 border border-dashed border-slate-300 dark:border-zinc-600 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1.5 text-xs"
                           >
                             <Plus className="w-3.5 h-3.5" />
                             Add event after {lastItem.name}
@@ -1444,7 +1718,7 @@ export const TimelinePlanner: React.FC = () => {
 
       {/* Empty State - No Prayer Times Yet */}
       {!hasPrayerTimes && !loading && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-8 border border-slate-200 dark:border-slate-700 text-center">
+        <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm p-8 border border-slate-200 dark:border-zinc-700 text-center">
           <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
             <Clock className="w-5 h-5 text-emerald-600" />
           </div>

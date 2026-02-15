@@ -56,7 +56,7 @@ const A4PreviewContainer = React.forwardRef<HTMLDivElement, { children: React.Re
   return (
     <div
       ref={outerRef}
-      className="overflow-hidden bg-slate-100 dark:bg-slate-900/50"
+      className="overflow-hidden bg-slate-100 dark:bg-zinc-900/50"
       style={fitToContainer ? { width: '100%', height: '100%' } : { height: A4_HEIGHT * scale }}
     >
       <div
@@ -122,6 +122,10 @@ export const ContractBuilder: React.FC = () => {
   const certificateContentRef = useRef<HTMLDivElement>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   useScrollLock(showMahrSync || showResetConfirm || showPreview);
+  
+  // Certificate template selection
+  type CertificateTemplate = 'classic' | 'gold' | 'minimal';
+  const [certificateTemplate, setCertificateTemplate] = useLocalStorage<CertificateTemplate>('contract-template', 'classic');
   
   // Read mahr calculator data from localStorage
   const [silverPrice] = useLocalStorage<number>('mahr-silverPrice', 0.85);
@@ -357,7 +361,7 @@ export const ContractBuilder: React.FC = () => {
       </div>
 
       {/* Form Card */}
-      <div ref={formTopRef} className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-3 md:p-5 mb-4 border border-slate-100 dark:border-slate-700">
+      <div ref={formTopRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-lg p-3 md:p-5 mb-4 border border-slate-100 dark:border-zinc-700">
         
         {/* Header Info Section */}
         <section className="mb-5">
@@ -386,7 +390,7 @@ export const ContractBuilder: React.FC = () => {
                 value={contractData.dateHijri}
                 onChange={(e) => updateField('dateHijri', e.target.value)}
                 placeholder="e.g., 15 Shaban 1447"
-                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
               />
             </div>
             <div className="md:col-span-2">
@@ -398,7 +402,7 @@ export const ContractBuilder: React.FC = () => {
                 value={contractData.location}
                 onChange={(e) => updateField('location', e.target.value)}
                 placeholder="e.g., East London Mosque, London, UK"
-                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
               />
             </div>
           </div>
@@ -426,7 +430,7 @@ export const ContractBuilder: React.FC = () => {
                     value={contractData.groomName}
                     onChange={(e) => updateField('groomName', e.target.value)}
                     placeholder="Enter groom's full name"
-                    className="w-full px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-teal-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                    className="w-full px-2.5 h-8 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-teal-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
                   />
                 </div>
                 <div>
@@ -438,7 +442,7 @@ export const ContractBuilder: React.FC = () => {
                     value={contractData.groomFatherName}
                     onChange={(e) => updateField('groomFatherName', e.target.value)}
                     placeholder="Enter groom's father's name"
-                    className="w-full px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-teal-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                    className="w-full px-2.5 h-8 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-teal-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
                   />
                 </div>
               </div>
@@ -459,7 +463,7 @@ export const ContractBuilder: React.FC = () => {
                     value={contractData.brideName}
                     onChange={(e) => updateField('brideName', e.target.value)}
                     placeholder="Enter bride's full name"
-                    className="w-full px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-rose-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                    className="w-full px-2.5 h-8 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-rose-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
                   />
                 </div>
                 <div>
@@ -471,7 +475,7 @@ export const ContractBuilder: React.FC = () => {
                     value={contractData.brideFatherName}
                     onChange={(e) => updateField('brideFatherName', e.target.value)}
                     placeholder="Enter bride's father's name"
-                    className="w-full px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-rose-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                    className="w-full px-2.5 h-8 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-rose-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
                   />
                 </div>
               </div>
@@ -496,7 +500,7 @@ export const ContractBuilder: React.FC = () => {
                   value={contractData.mahrAmount}
                   onChange={(e) => updateField('mahrAmount', e.target.value)}
                   placeholder="e.g., £5,000 or 500 grams of silver"
-                  className="w-full px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-violet-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                  className="w-full px-2.5 h-8 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-violet-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
                 />
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                   Can be cash, gold, property, or services (e.g., "Teach 5 Surahs")
@@ -510,7 +514,7 @@ export const ContractBuilder: React.FC = () => {
                   <label className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg border cursor-pointer transition-all text-xs ${
                     contractData.mahrType === 'prompt' 
                       ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-400 text-violet-700 dark:text-violet-300' 
-                      : 'bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-violet-300'
+                      : 'bg-white dark:bg-zinc-900/50 border-slate-200 dark:border-zinc-600 text-slate-600 dark:text-slate-400 hover:border-violet-300'
                   }`}>
                     <input
                       type="radio"
@@ -526,7 +530,7 @@ export const ContractBuilder: React.FC = () => {
                   <label className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg border cursor-pointer transition-all text-xs ${
                     contractData.mahrType === 'deferred' 
                       ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-400 text-violet-700 dark:text-violet-300' 
-                      : 'bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-violet-300'
+                      : 'bg-white dark:bg-zinc-900/50 border-slate-200 dark:border-zinc-600 text-slate-600 dark:text-slate-400 hover:border-violet-300'
                   }`}>
                     <input
                       type="radio"
@@ -558,7 +562,7 @@ export const ContractBuilder: React.FC = () => {
               {/* Mahr Sync Modal */}
               {showMahrSync && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowMahrSync(false)}>
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+                  <div className="bg-white dark:bg-zinc-800 rounded-xl p-4 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
                     <div className="flex justify-between items-center mb-3">
                       <h4 className="font-bold text-slate-800 dark:text-white text-sm">Select Mahr Amount</h4>
                       <button 
@@ -576,7 +580,7 @@ export const ContractBuilder: React.FC = () => {
                         <button
                           key={option.id}
                           onClick={() => handleSyncMahr(option.formattedValue)}
-                          className="w-full p-3 bg-slate-50 dark:bg-slate-700 hover:bg-violet-50 dark:hover:bg-violet-900/30 border border-slate-200 dark:border-slate-600 hover:border-violet-300 dark:hover:border-violet-600 rounded-lg text-left transition-all"
+                          className="w-full p-3 bg-slate-50 dark:bg-zinc-700 hover:bg-violet-50 dark:hover:bg-violet-900/30 border border-slate-200 dark:border-zinc-600 hover:border-violet-300 dark:hover:border-violet-600 rounded-lg text-left transition-all"
                         >
                           <div className="flex justify-between items-center">
                             <div>
@@ -614,7 +618,7 @@ export const ContractBuilder: React.FC = () => {
                 value={contractData.witness1Name}
                 onChange={(e) => updateField('witness1Name', e.target.value)}
                 placeholder="Enter first witness name"
-                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
               />
             </div>
             <div>
@@ -626,7 +630,7 @@ export const ContractBuilder: React.FC = () => {
                 value={contractData.witness2Name}
                 onChange={(e) => updateField('witness2Name', e.target.value)}
                 placeholder="Enter second witness name"
-                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
               />
             </div>
             <div>
@@ -638,7 +642,7 @@ export const ContractBuilder: React.FC = () => {
                 value={contractData.waliName}
                 onChange={(e) => updateField('waliName', e.target.value)}
                 placeholder="Enter Wali's name"
-                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
               />
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                 Usually the bride's father or male relative
@@ -653,7 +657,7 @@ export const ContractBuilder: React.FC = () => {
                 value={contractData.officiantName}
                 onChange={(e) => updateField('officiantName', e.target.value)}
                 placeholder="Enter Imam's name"
-                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
+                className="w-full px-2.5 h-8 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-emerald-400 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400"
               />
             </div>
           </div>
@@ -671,8 +675,39 @@ export const ContractBuilder: React.FC = () => {
           </div>
         )}
 
+        {/* Template Selection */}
+        <section className="mb-5">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold">5</span>
+            Certificate Style
+          </h3>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { id: 'classic' as CertificateTemplate, name: 'Classic', desc: 'Emerald border', color: 'emerald', preview: '🕌' },
+              { id: 'gold' as CertificateTemplate, name: 'Gold Ornate', desc: 'Gold & burgundy', color: 'amber', preview: '✨' },
+              { id: 'minimal' as CertificateTemplate, name: 'Minimal', desc: 'Clean & modern', color: 'slate', preview: '◼️' },
+            ]).map(t => (
+              <button
+                key={t.id}
+                onClick={() => setCertificateTemplate(t.id)}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${
+                  certificateTemplate === t.id
+                    ? t.color === 'emerald' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                      : t.color === 'amber' ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
+                      : 'border-slate-500 bg-slate-50 dark:bg-zinc-700/50'
+                    : 'border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-slate-600'
+                }`}
+              >
+                <span className="text-lg">{t.preview}</span>
+                <p className="text-xs font-bold text-slate-800 dark:text-white mt-1">{t.name}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{t.desc}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* Action Buttons */}
-        <div className="flex flex-row gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">
+        <div className="flex flex-row gap-2 pt-4 border-t border-slate-200 dark:border-zinc-700">
           <button
             onClick={handleGenerate}
             className="flex-1 h-10 px-4 font-bold rounded-xl shadow-sm transition-all active:scale-[0.98] text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -681,7 +716,7 @@ export const ContractBuilder: React.FC = () => {
           </button>
           <button
             onClick={() => setShowResetConfirm(true)}
-            className="h-10 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold rounded-xl transition-all text-xs flex-shrink-0"
+            className="h-10 px-3 bg-slate-100 dark:bg-zinc-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold rounded-xl transition-all text-xs flex-shrink-0"
           >
             Reset
           </button>
@@ -689,17 +724,17 @@ export const ContractBuilder: React.FC = () => {
       </div>
 
       {/* FAQ Section */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm mb-4 border border-slate-200 dark:border-slate-700">
+      <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm mb-4 border border-slate-200 dark:border-zinc-700">
         <div className="px-3 py-2.5">
           <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             Frequently Asked Questions
           </h3>
         </div>
-        <div className="border-t border-slate-200 dark:border-slate-700" />
+        <div className="border-t border-slate-200 dark:border-zinc-700" />
         <div className="p-3 space-y-2">
           {/* FAQ 1 */}
           <details className="group">
-            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-zinc-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Will my Imam sign this certificate?</span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform flex-shrink-0" />
             </summary>
@@ -718,7 +753,7 @@ export const ContractBuilder: React.FC = () => {
 
           {/* FAQ 2 */}
           <details className="group">
-            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-zinc-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Is this certificate legally binding?</span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform flex-shrink-0" />
             </summary>
@@ -737,7 +772,7 @@ export const ContractBuilder: React.FC = () => {
 
           {/* FAQ 3 */}
           <details className="group">
-            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-zinc-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Why do I need 2 witnesses and a Wali?</span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform flex-shrink-0" />
             </summary>
@@ -757,7 +792,7 @@ export const ContractBuilder: React.FC = () => {
 
           {/* FAQ 4 */}
           <details className="group">
-            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+            <summary className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-zinc-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">What's the difference between Prompt and Deferred Mahr?</span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform flex-shrink-0" />
             </summary>
@@ -808,35 +843,23 @@ export const ContractBuilder: React.FC = () => {
           {/* Certificate area - pb-20 accounts for mobile nav bar */}
           <div className="flex-1 min-h-0 p-4 pb-30 md:p-6 md:pb-6" onClick={(e) => e.stopPropagation()}>
               <A4PreviewContainer ref={certificateContentRef} fitToContainer>
-                {/* Decorative Border - flex-1 fills A4 height, flex-col distributes space */}
+                {/* ===== CLASSIC TEMPLATE ===== */}
+                {certificateTemplate === 'classic' && (
                 <div className="border-4 border-double border-emerald-600 p-8 flex-1 flex flex-col justify-between">
-                  {/* Header */}
                   <div className="text-center">
                     <div className="text-emerald-600 text-5xl mb-3">﷽</div>
-                    <h1 className="text-4xl font-serif font-bold text-slate-800 mb-1">
-                      Nikkah Certificate
-                    </h1>
+                    <h1 className="text-4xl font-serif font-bold text-slate-800 mb-1">Nikkah Certificate</h1>
                     <p className="text-emerald-700 font-medium">شهادة النكاح</p>
                   </div>
-
-                  {/* Date & Location */}
                   <div className="text-center pb-4 border-b border-emerald-200">
                     <p className="text-slate-600 mb-1.5">
                       <span className="font-semibold">Date:</span> {contractData.dateGregorian ? new Date(contractData.dateGregorian).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
                       {contractData.dateHijri && <span className="text-emerald-600 ml-2">({contractData.dateHijri})</span>}
                     </p>
-                    <p className="text-slate-600">
-                      <span className="font-semibold">Location:</span> {contractData.location || '—'}
-                    </p>
+                    <p className="text-slate-600"><span className="font-semibold">Location:</span> {contractData.location || '—'}</p>
                   </div>
-
-                  {/* Main Content */}
                   <div className="text-center">
-                    <p className="text-slate-700 leading-relaxed mb-5">
-                      This is to certify that the Islamic marriage contract (Nikkah) has been solemnized between:
-                    </p>
-                    
-                    {/* The Couple */}
+                    <p className="text-slate-700 leading-relaxed mb-5">This is to certify that the Islamic marriage contract (Nikkah) has been solemnized between:</p>
                     <div className="grid grid-cols-2 gap-6 mb-5">
                       <div className="bg-teal-50 rounded-2xl p-5 border border-teal-200">
                         <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-1.5">The Groom</p>
@@ -849,60 +872,158 @@ export const ContractBuilder: React.FC = () => {
                         <p className="text-sm text-slate-600 mt-1">Daughter of {contractData.brideFatherName || '—'}</p>
                       </div>
                     </div>
-
-                    {/* Mahr */}
                     <div className="bg-violet-50 rounded-2xl p-5 border border-violet-200 mb-5">
                       <p className="text-xs font-bold text-violet-600 uppercase tracking-widest mb-1.5">The Mahr (Dower)</p>
                       <p className="text-2xl font-bold text-slate-800">{contractData.mahrAmount || '—'}</p>
-                      <p className="text-sm text-violet-600 mt-1">
-                        {contractData.mahrType === 'prompt' ? 'Prompt (Mu\'ajjal) - Payable at time of Nikkah' : 'Deferred (Mu\'wajjal) - Payable upon demand'}
-                      </p>
+                      <p className="text-sm text-violet-600 mt-1">{contractData.mahrType === 'prompt' ? 'Prompt (Mu\'ajjal) - Payable at time of Nikkah' : 'Deferred (Mu\'wajjal) - Payable upon demand'}</p>
                     </div>
-
-                    <p className="text-slate-700 leading-relaxed">
-                      The marriage was conducted in accordance with Islamic Shariah, with the mutual consent of both parties and in the presence of the witnesses named below.
-                    </p>
+                    <p className="text-slate-700 leading-relaxed">The marriage was conducted in accordance with Islamic Shariah, with the mutual consent of both parties and in the presence of the witnesses named below.</p>
                   </div>
-
-                  {/* Witnesses & Signatures */}
                   <div className="grid grid-cols-2 gap-6 pt-4 border-t border-emerald-200">
                     <div>
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Witnesses</p>
                       <div className="space-y-3">
-                        <div className="border-b border-slate-200 pb-2">
-                          <p className="text-sm text-slate-500">Witness 1</p>
-                          <p className="font-semibold text-slate-800">{contractData.witness1Name || '—'}</p>
-                        </div>
-                        <div className="border-b border-slate-200 pb-2">
-                          <p className="text-sm text-slate-500">Witness 2</p>
-                          <p className="font-semibold text-slate-800">{contractData.witness2Name || '—'}</p>
-                        </div>
+                        <div className="border-b border-slate-200 pb-2"><p className="text-sm text-slate-500">Witness 1</p><p className="font-semibold text-slate-800">{contractData.witness1Name || '—'}</p></div>
+                        <div className="border-b border-slate-200 pb-2"><p className="text-sm text-slate-500">Witness 2</p><p className="font-semibold text-slate-800">{contractData.witness2Name || '—'}</p></div>
                       </div>
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Officials</p>
                       <div className="space-y-3">
-                        <div className="border-b border-slate-200 pb-2">
-                          <p className="text-sm text-slate-500">Wali (Bride's Guardian)</p>
-                          <p className="font-semibold text-slate-800">{contractData.waliName || '—'}</p>
-                        </div>
-                        {contractData.officiantName && (
-                          <div className="border-b border-slate-200 pb-2">
-                            <p className="text-sm text-slate-500">Officiant (Imam)</p>
-                            <p className="font-semibold text-slate-800">{contractData.officiantName}</p>
-                          </div>
-                        )}
+                        <div className="border-b border-slate-200 pb-2"><p className="text-sm text-slate-500">Wali (Bride's Guardian)</p><p className="font-semibold text-slate-800">{contractData.waliName || '—'}</p></div>
+                        {contractData.officiantName && (<div className="border-b border-slate-200 pb-2"><p className="text-sm text-slate-500">Officiant (Imam)</p><p className="font-semibold text-slate-800">{contractData.officiantName}</p></div>)}
                       </div>
                     </div>
                   </div>
-
-                  {/* Footer */}
                   <div className="text-center pt-4 border-t border-emerald-200">
-                    <p className="text-emerald-600 text-sm font-medium italic">
-                      "And among His signs is that He created for you mates from among yourselves, that you may dwell in tranquility with them, and He has put love and mercy between your hearts." - Quran 30:21
-                    </p>
+                    <p className="text-emerald-600 text-sm font-medium italic">"And among His signs is that He created for you mates from among yourselves, that you may dwell in tranquility with them, and He has put love and mercy between your hearts." - Quran 30:21</p>
                   </div>
                 </div>
+                )}
+
+                {/* ===== GOLD ORNATE TEMPLATE ===== */}
+                {certificateTemplate === 'gold' && (
+                <div className="border-4 border-double p-8 flex-1 flex flex-col justify-between" style={{ borderColor: '#b8860b', background: 'linear-gradient(135deg, #fffaf0 0%, #fef3e2 50%, #fff8f0 100%)' }}>
+                  {/* Decorative corners */}
+                  <div className="absolute top-[52px] left-[52px] w-12 h-12 border-t-2 border-l-2 rounded-tl-lg" style={{ borderColor: '#b8860b' }} />
+                  <div className="absolute top-[52px] right-[52px] w-12 h-12 border-t-2 border-r-2 rounded-tr-lg" style={{ borderColor: '#b8860b' }} />
+                  <div className="absolute bottom-[52px] left-[52px] w-12 h-12 border-b-2 border-l-2 rounded-bl-lg" style={{ borderColor: '#b8860b' }} />
+                  <div className="absolute bottom-[52px] right-[52px] w-12 h-12 border-b-2 border-r-2 rounded-br-lg" style={{ borderColor: '#b8860b' }} />
+                  <div className="text-center">
+                    <div className="text-5xl mb-3" style={{ color: '#8b6914' }}>﷽</div>
+                    <h1 className="text-4xl font-serif font-bold mb-1" style={{ color: '#5c3a0a' }}>Nikkah Certificate</h1>
+                    <p className="font-medium" style={{ color: '#8b6914' }}>شهادة النكاح</p>
+                    <div className="mt-2 mx-auto w-40 h-px" style={{ background: 'linear-gradient(to right, transparent, #b8860b, transparent)' }} />
+                  </div>
+                  <div className="text-center pb-4" style={{ borderBottom: '1px solid #dab76a' }}>
+                    <p className="mb-1.5" style={{ color: '#5c3a0a' }}>
+                      <span className="font-semibold">Date:</span> {contractData.dateGregorian ? new Date(contractData.dateGregorian).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
+                      {contractData.dateHijri && <span className="ml-2" style={{ color: '#8b6914' }}>({contractData.dateHijri})</span>}
+                    </p>
+                    <p style={{ color: '#5c3a0a' }}><span className="font-semibold">Location:</span> {contractData.location || '—'}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="leading-relaxed mb-5" style={{ color: '#5c3a0a' }}>This is to certify that the Islamic marriage contract (Nikkah) has been solemnized between:</p>
+                    <div className="grid grid-cols-2 gap-6 mb-5">
+                      <div className="rounded-2xl p-5 border" style={{ background: '#fdf6e3', borderColor: '#dab76a' }}>
+                        <p className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#8b6914' }}>The Groom</p>
+                        <p className="text-xl font-serif font-bold" style={{ color: '#5c3a0a' }}>{contractData.groomName || '—'}</p>
+                        <p className="text-sm mt-1" style={{ color: '#7a5c1e' }}>Son of {contractData.groomFatherName || '—'}</p>
+                      </div>
+                      <div className="rounded-2xl p-5 border" style={{ background: '#fdf6e3', borderColor: '#dab76a' }}>
+                        <p className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#8b1c3a' }}>The Bride</p>
+                        <p className="text-xl font-serif font-bold" style={{ color: '#5c3a0a' }}>{contractData.brideName || '—'}</p>
+                        <p className="text-sm mt-1" style={{ color: '#7a5c1e' }}>Daughter of {contractData.brideFatherName || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl p-5 border mb-5" style={{ background: '#f8f0e0', borderColor: '#dab76a' }}>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#8b6914' }}>The Mahr (Dower)</p>
+                      <p className="text-2xl font-bold" style={{ color: '#5c3a0a' }}>{contractData.mahrAmount || '—'}</p>
+                      <p className="text-sm mt-1" style={{ color: '#8b6914' }}>{contractData.mahrType === 'prompt' ? 'Prompt (Mu\'ajjal) - Payable at time of Nikkah' : 'Deferred (Mu\'wajjal) - Payable upon demand'}</p>
+                    </div>
+                    <p className="leading-relaxed" style={{ color: '#5c3a0a' }}>The marriage was conducted in accordance with Islamic Shariah, with the mutual consent of both parties and in the presence of the witnesses named below.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-6 pt-4" style={{ borderTop: '1px solid #dab76a' }}>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#8b6914' }}>Witnesses</p>
+                      <div className="space-y-3">
+                        <div className="pb-2" style={{ borderBottom: '1px solid #e8d5a0' }}><p className="text-sm" style={{ color: '#8b6914' }}>Witness 1</p><p className="font-semibold" style={{ color: '#5c3a0a' }}>{contractData.witness1Name || '—'}</p></div>
+                        <div className="pb-2" style={{ borderBottom: '1px solid #e8d5a0' }}><p className="text-sm" style={{ color: '#8b6914' }}>Witness 2</p><p className="font-semibold" style={{ color: '#5c3a0a' }}>{contractData.witness2Name || '—'}</p></div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#8b6914' }}>Officials</p>
+                      <div className="space-y-3">
+                        <div className="pb-2" style={{ borderBottom: '1px solid #e8d5a0' }}><p className="text-sm" style={{ color: '#8b6914' }}>Wali (Bride's Guardian)</p><p className="font-semibold" style={{ color: '#5c3a0a' }}>{contractData.waliName || '—'}</p></div>
+                        {contractData.officiantName && (<div className="pb-2" style={{ borderBottom: '1px solid #e8d5a0' }}><p className="text-sm" style={{ color: '#8b6914' }}>Officiant (Imam)</p><p className="font-semibold" style={{ color: '#5c3a0a' }}>{contractData.officiantName}</p></div>)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-center pt-4" style={{ borderTop: '1px solid #dab76a' }}>
+                    <p className="text-sm font-medium italic" style={{ color: '#8b6914' }}>"And among His signs is that He created for you mates from among yourselves, that you may dwell in tranquility with them, and He has put love and mercy between your hearts." - Quran 30:21</p>
+                  </div>
+                </div>
+                )}
+
+                {/* ===== MINIMAL MODERN TEMPLATE ===== */}
+                {certificateTemplate === 'minimal' && (
+                <div className="p-10 flex-1 flex flex-col justify-between" style={{ background: '#ffffff' }}>
+                  <div className="text-center">
+                    <p className="text-3xl mb-4 text-slate-400">﷽</p>
+                    <h1 className="text-5xl font-serif font-bold text-slate-900 tracking-tight mb-2">Nikkah</h1>
+                    <p className="text-lg font-light text-slate-400 tracking-[0.3em] uppercase">Certificate</p>
+                    <div className="mt-4 mx-auto w-16 h-0.5 bg-slate-900" />
+                  </div>
+                  <div className="text-center py-4">
+                    <p className="text-sm text-slate-500">
+                      {contractData.dateGregorian ? new Date(contractData.dateGregorian).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
+                      {contractData.dateHijri && <span className="mx-2">·</span>}
+                      {contractData.dateHijri && <span>{contractData.dateHijri}</span>}
+                    </p>
+                    <p className="text-sm text-slate-500 mt-1">{contractData.location || '—'}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-slate-500 mb-8 max-w-md mx-auto leading-relaxed">This is to certify that the Islamic marriage contract has been solemnized between:</p>
+                    <div className="grid grid-cols-2 gap-10 mb-8">
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">The Groom</p>
+                        <p className="text-2xl font-serif font-bold text-slate-900">{contractData.groomName || '—'}</p>
+                        <p className="text-sm text-slate-500 mt-1">Son of {contractData.groomFatherName || '—'}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">The Bride</p>
+                        <p className="text-2xl font-serif font-bold text-slate-900">{contractData.brideName || '—'}</p>
+                        <p className="text-sm text-slate-500 mt-1">Daughter of {contractData.brideFatherName || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="mx-auto w-8 h-px bg-slate-300 mb-6" />
+                    <div className="mb-6">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Mahr</p>
+                      <p className="text-2xl font-bold text-slate-900">{contractData.mahrAmount || '—'}</p>
+                      <p className="text-xs text-slate-500 mt-1">{contractData.mahrType === 'prompt' ? 'Prompt (Mu\'ajjal)' : 'Deferred (Mu\'wajjal)'}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-10 pt-6" style={{ borderTop: '1px solid #e5e7eb' }}>
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Witnesses</p>
+                      <div className="space-y-4">
+                        <div><p className="text-xs text-slate-400">Witness 1</p><p className="font-semibold text-slate-900 text-sm">{contractData.witness1Name || '—'}</p><div className="mt-2 w-full h-px bg-slate-200" /></div>
+                        <div><p className="text-xs text-slate-400">Witness 2</p><p className="font-semibold text-slate-900 text-sm">{contractData.witness2Name || '—'}</p><div className="mt-2 w-full h-px bg-slate-200" /></div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Officials</p>
+                      <div className="space-y-4">
+                        <div><p className="text-xs text-slate-400">Wali (Bride's Guardian)</p><p className="font-semibold text-slate-900 text-sm">{contractData.waliName || '—'}</p><div className="mt-2 w-full h-px bg-slate-200" /></div>
+                        {contractData.officiantName && (<div><p className="text-xs text-slate-400">Officiant (Imam)</p><p className="font-semibold text-slate-900 text-sm">{contractData.officiantName}</p><div className="mt-2 w-full h-px bg-slate-200" /></div>)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-center pt-6">
+                    <p className="text-xs text-slate-400 font-light italic max-w-sm mx-auto leading-relaxed">"And among His signs is that He created for you mates from among yourselves, that you may dwell in tranquility with them." — Quran 30:21</p>
+                  </div>
+                </div>
+                )}
               </A4PreviewContainer>
           </div>
         </div>
@@ -912,7 +1033,7 @@ export const ContractBuilder: React.FC = () => {
       {showResetConfirm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setShowResetConfirm(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 max-w-sm w-full shadow-2xl"
+          <div className="bg-white dark:bg-zinc-800 rounded-2xl p-5 max-w-sm w-full shadow-2xl"
             onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-slate-800 dark:text-white mb-2">Reset Form?</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-5">
@@ -930,7 +1051,7 @@ export const ContractBuilder: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowResetConfirm(false)}
-                className="flex-1 h-9 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold text-sm rounded-lg transition-colors"
+                className="flex-1 h-9 bg-slate-100 dark:bg-zinc-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold text-sm rounded-lg transition-colors"
               >
                 Cancel
               </button>

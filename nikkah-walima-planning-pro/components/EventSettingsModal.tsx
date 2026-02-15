@@ -70,7 +70,7 @@ export const EventSettingsModal: React.FC<EventSettingsModalProps> = ({
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 sm:p-5 max-w-md w-full shadow-2xl max-h-[80vh] flex flex-col"
+      <div className="bg-white dark:bg-zinc-800 rounded-2xl p-4 sm:p-5 max-w-md w-full shadow-2xl max-h-[80vh] flex flex-col"
         onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-base font-bold text-slate-800 dark:text-white">Settings</h3>
@@ -84,7 +84,7 @@ export const EventSettingsModal: React.FC<EventSettingsModalProps> = ({
           {/* Segregation Mode - only shown from Guest Manager */}
           {showSegregation && onToggleSegregation && (
             <div className="mb-4">
-              <label className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+              <label className="flex items-center justify-between cursor-pointer p-2.5 bg-slate-50 dark:bg-zinc-900/50 rounded-lg border border-slate-200 dark:border-zinc-700">
                 <div>
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">Segregation Mode</p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">View male/female counts separately</p>
@@ -120,7 +120,7 @@ export const EventSettingsModal: React.FC<EventSettingsModalProps> = ({
                         className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
                           event.enabled
                             ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-400'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-transparent'
+                            : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-slate-400 border border-transparent'
                         }`}>
                         <span>{event.icon}</span>
                         <span>{event.name}</span>
@@ -142,7 +142,7 @@ export const EventSettingsModal: React.FC<EventSettingsModalProps> = ({
                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
                         event.enabled
                           ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-400'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-transparent'
+                          : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-slate-400 border border-transparent'
                       }`}>
                       <span>{event.icon}</span>
                       <span>{event.name}</span>
@@ -168,7 +168,7 @@ export const EventSettingsModal: React.FC<EventSettingsModalProps> = ({
                 <input type="text" value={newCustomEventName} onChange={(e) => setNewCustomEventName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
                   placeholder="Event name..."
-                  className="flex-1 h-8 px-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-md text-xs font-medium text-slate-800 dark:text-white placeholder:text-slate-400 outline-none focus:border-blue-400"
+                  className="flex-1 h-8 px-2.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-md text-xs font-medium text-slate-800 dark:text-white placeholder:text-slate-400 outline-none focus:border-blue-400"
                 />
                 <button onClick={handleAdd} disabled={!newCustomEventName.trim()}
                   className="h-8 px-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white font-semibold text-xs rounded-md transition-colors disabled:cursor-not-allowed">

@@ -131,7 +131,7 @@ const TimeBox: React.FC<{
         className={`w-14 h-12 text-center text-lg font-bold rounded-lg outline-none transition-all ${
           isFocused
             ? 'bg-emerald-50 dark:bg-emerald-900/30 border-2 border-emerald-500 text-emerald-700 dark:text-emerald-300'
-            : 'bg-slate-100 dark:bg-slate-700/60 border-2 border-transparent text-slate-800 dark:text-white hover:border-slate-300 dark:hover:border-slate-500'
+            : 'bg-slate-100 dark:bg-zinc-700/60 border-2 border-transparent text-slate-800 dark:text-white hover:border-slate-300 dark:hover:border-slate-500'
         }`}
       />
       <button
@@ -246,7 +246,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
     ? 'border-red-400 dark:border-red-500'
     : isOpen
       ? 'border-emerald-400 dark:border-emerald-400'
-      : 'border-slate-200 dark:border-slate-600 focus-within:border-emerald-400';
+      : 'border-slate-200 dark:border-zinc-600 focus-within:border-emerald-400';
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
@@ -266,7 +266,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
       {/* Trigger */}
       <div
         ref={triggerRef}
-        className={`flex items-center h-8 bg-slate-50 dark:bg-slate-900/50 border ${borderClass} rounded-lg transition-all cursor-pointer`}
+        className={`flex items-center h-8 bg-slate-50 dark:bg-zinc-900/50 border ${borderClass} rounded-lg transition-all cursor-pointer`}
         onClick={handleTriggerClick}
       >
         <Clock className="ml-2.5 w-3.5 h-3.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
@@ -279,7 +279,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
       {isOpen && (
         <div
           ref={popoverRef}
-          className={`absolute z-50 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200/80 dark:border-slate-600/80 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] ${
+          className={`absolute z-50 bg-white/95 dark:bg-zinc-800/95 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-600/80 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] ${
             opensUp ? 'bottom-full mb-1' : 'top-full mt-1'
           }`}
           onWheel={(e) => e.stopPropagation()}

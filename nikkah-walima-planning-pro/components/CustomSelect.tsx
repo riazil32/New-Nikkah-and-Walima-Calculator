@@ -161,7 +161,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleKeyDown}
-        className={`w-full h-8 px-2.5 pr-7 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-left text-xs font-semibold text-slate-800 dark:text-white truncate transition-all outline-none focus:border-emerald-400 ${isOpen ? 'border-emerald-400 dark:border-emerald-400' : ''} ${triggerClassName}`}
+        className={`w-full h-9 px-2.5 pr-7 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-left text-xs font-semibold text-slate-800 dark:text-white truncate transition-all outline-none focus:border-emerald-400 ${isOpen ? 'border-emerald-400 dark:border-emerald-400' : ''} ${triggerClassName}`}
       >
         {selectedOption?.label || placeholder}
       </button>
@@ -172,7 +172,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       {isOpen && (
         <div
           ref={listRef}
-          className={`absolute z-50 w-full max-h-56 overflow-auto rounded-xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200/80 dark:border-slate-600/80 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] py-1 custom-scrollbar ${
+          className={`absolute z-50 w-full max-h-56 overflow-auto rounded-xl bg-white/95 dark:bg-zinc-800/95 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-600/80 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] py-1 custom-scrollbar ${
             opensUp ? 'bottom-full mb-1' : 'top-full mt-1'
           }`}
           role="listbox"
@@ -208,7 +208,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   isSelected
                     ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-semibold'
                     : isHighlighted
-                      ? 'bg-slate-100 dark:bg-slate-700/70 text-slate-800 dark:text-white font-medium'
+                      ? 'bg-slate-100 dark:bg-zinc-700/70 text-slate-800 dark:text-white font-medium'
                       : 'text-slate-700 dark:text-slate-300 font-medium'
                 }`}
               >

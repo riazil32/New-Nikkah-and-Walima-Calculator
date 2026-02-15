@@ -16,6 +16,8 @@
         "npm:@types/node@^22.14.0",
         "npm:@vitejs/plugin-react@5",
         "npm:autoprefixer@^10.4.23",
+        "npm:html-to-image@^1.11.13",
+        "npm:html2canvas@^1.4.1",
         "npm:jspdf-autotable@^5.0.7",
         "npm:jspdf@^4.1.0",
         "npm:postcss@^8.5.6",

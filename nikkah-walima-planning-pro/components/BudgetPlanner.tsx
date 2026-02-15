@@ -6,6 +6,8 @@ import { useScrollLock } from '../hooks/useScrollLock';
 import { BUDGET_CATEGORIES, CURRENCIES, SECTION_LABELS, MAHR_TYPES } from '../constants';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { BudgetCategory, Payer, CategorySection, CategoryExpense, PaymentStatus, BudgetTemplate, MahrPaymentType } from '../types';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Budget templates in GBP (base currency) - will be converted for other currencies
 const BUDGET_TEMPLATES_GBP = [
@@ -84,7 +86,10 @@ const getDefaultCategoryData = (): CategoryDataMap => {
       actualCost: undefined,
       estimatedCost: undefined,
       vendor: '',
-      notes: ''
+      vendorPhone: '',
+      vendorEmail: '',
+      notes: '',
+      receiptBase64: undefined,
     }
   }), {});
 };
@@ -102,7 +107,10 @@ const migrateCategoryData = (data: CategoryDataMap): CategoryDataMap => {
       actualCost: v.actualCost,
       estimatedCost: v.estimatedCost,
       vendor: v.vendor || '',
-      notes: v.notes || ''
+      vendorPhone: v.vendorPhone || '',
+      vendorEmail: v.vendorEmail || '',
+      notes: v.notes || '',
+      receiptBase64: v.receiptBase64,
     };
   }
   return migrated;
@@ -387,7 +395,10 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         paymentStatus: 'pending' as PaymentStatus,
         amountPaid: 0,
         vendor: '',
-        notes: ''
+        vendorPhone: '',
+        vendorEmail: '',
+        notes: '',
+        receiptBase64: undefined,
       }
     }));
     setNewCategoryName('');
@@ -572,6 +583,368 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
     return sections;
   }, [allCategories]);
 
+  // PDF generation state
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  // Generate professional budget report PDF
+  const handleDownloadPdf = useCallback(async () => {
+    if (isGeneratingPdf) return;
+    setIsGeneratingPdf(true);
+
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 14;
+      const contentWidth = pageWidth - margin * 2;
+      let y = margin;
+
+      const sym = selectedCurrency.symbol;
+      const fmt = (n: number) => `${sym}${n.toLocaleString()}`;
+
+      // ---- Header ----
+      pdf.setFillColor(16, 40, 36); // dark emerald
+      pdf.rect(0, 0, pageWidth, 38, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(20);
+      pdf.text('Wedding Budget Report', margin, 16);
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, margin, 24);
+      pdf.text(`Currency: ${selectedCurrency.name} (${selectedCurrency.code})`, margin, 30);
+      y = 46;
+
+      // ---- Summary Cards Row ----
+      const summaryItems = [
+        { label: 'Total Budget', value: fmt(budget), color: [16, 40, 36] as [number, number, number] },
+        { label: 'Allocated', value: fmt(Math.round(totalAllocated)), color: totalPercentage > 100 ? [180, 40, 40] as [number, number, number] : [16, 100, 80] as [number, number, number] },
+        { label: 'Per Guest', value: guests > 0 ? fmt(Math.round(budget / guests)) : 'N/A', color: [60, 80, 120] as [number, number, number] },
+        { label: 'Guests', value: guests.toLocaleString(), color: [90, 60, 110] as [number, number, number] },
+      ];
+      const cardW = (contentWidth - 6) / 4;
+      summaryItems.forEach((item, i) => {
+        const x = margin + i * (cardW + 2);
+        pdf.setFillColor(item.color[0], item.color[1], item.color[2]);
+        pdf.roundedRect(x, y, cardW, 18, 2, 2, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(7);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(item.label.toUpperCase(), x + 3, y + 6);
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(item.value, x + 3, y + 14);
+      });
+      y += 24;
+
+      // Mahr info (if applicable)
+      if (mahrActualCost > 0) {
+        pdf.setFillColor(240, 235, 225);
+        pdf.roundedRect(margin, y, contentWidth, 12, 2, 2, 'F');
+        pdf.setTextColor(80, 60, 30);
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`Mahr (${mahrPaymentType === 'prompt' ? 'Prompt' : 'Deferred'}): ${fmt(mahrActualCost)}`, margin + 4, y + 7.5);
+        if (mahrPaymentType === 'prompt') {
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(`Total Cash Required (Wedding + Mahr): ${fmt(grandTotalRequired)}`, margin + contentWidth / 2, y + 7.5);
+        }
+        y += 16;
+      }
+
+      // Expense Tracking Summary (if data exists)
+      if (expenseTotals.totalActual > 0 || expenseTotals.totalPaid > 0) {
+        pdf.setFillColor(245, 248, 250);
+        pdf.roundedRect(margin, y, contentWidth, 14, 2, 2, 'F');
+        pdf.setTextColor(40, 40, 40);
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'bold');
+        const trackingItems = [
+          `Bills: ${fmt(expenseTotals.totalActual)}`,
+          `Paid: ${fmt(expenseTotals.totalPaid)}`,
+          `Pending: ${fmt(expenseTotals.totalPending)}`,
+        ];
+        pdf.text('Payment Tracking:', margin + 4, y + 5);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(trackingItems.join('   |   '), margin + 38, y + 5);
+
+        // Progress bar
+        const barX = margin + 4;
+        const barW = contentWidth - 8;
+        const barY = y + 8;
+        pdf.setFillColor(220, 220, 220);
+        pdf.roundedRect(barX, barY, barW, 3, 1, 1, 'F');
+        if (expenseTotals.totalActual > 0) {
+          const pct = Math.min(1, expenseTotals.totalPaid / expenseTotals.totalActual);
+          pdf.setFillColor(16, 150, 100);
+          pdf.roundedRect(barX, barY, barW * pct, 3, 1, 1, 'F');
+        }
+        y += 18;
+      }
+
+      // Payer breakdown
+      const hasPayerData = payerTotals.groom > 0 || payerTotals.bride > 0;
+      if (hasPayerData) {
+        pdf.setFillColor(248, 245, 252);
+        pdf.roundedRect(margin, y, contentWidth, 10, 2, 2, 'F');
+        pdf.setTextColor(60, 40, 80);
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'bold');
+        const payerItems = [
+          `Joint: ${fmt(payerTotals.joint)}`,
+          `Groom's Side: ${fmt(payerTotals.groom)}`,
+          `Bride's Side: ${fmt(payerTotals.bride)}`,
+        ];
+        pdf.text('Responsibility: ' + payerItems.join('   |   '), margin + 4, y + 6.5);
+        y += 14;
+      }
+
+      // ---- Category Tables per Section ----
+      const sections: CategorySection[] = ['events', 'personal', 'logistics'];
+      for (const section of sections) {
+        const categories = categoriesBySection[section];
+        if (categories.length === 0) continue;
+
+        const sectionInfo = SECTION_LABELS[section];
+
+        // Check if we need a page break before the section header
+        if (y > pageHeight - 40) {
+          pdf.addPage();
+          y = margin;
+        }
+
+        // Section header
+        pdf.setFillColor(16, 40, 36);
+        pdf.roundedRect(margin, y, contentWidth, 8, 1.5, 1.5, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`${sectionInfo.icon}  ${sectionInfo.title.toUpperCase()}`, margin + 4, y + 5.5);
+        y += 10;
+
+        // Build table data
+        const tableBody = categories.map(cat => {
+          const data = categoryData[cat.key] as CategoryExpense;
+          const pct = data?.percentage || 0;
+          const allocated = Math.round((budget * pct) / 100);
+          const actual = data?.actualCost ?? 0;
+          const paid = data?.amountPaid || 0;
+          const status = data?.paymentStatus || 'pending';
+          const payer = data?.payer || 'joint';
+
+          return [
+            `${cat.icon} ${cat.name}`,
+            `${pct.toFixed(0)}%`,
+            fmt(allocated),
+            actual > 0 ? fmt(actual) : '-',
+            paid > 0 ? fmt(paid) : '-',
+            status.charAt(0).toUpperCase() + status.slice(1),
+            payer.charAt(0).toUpperCase() + payer.slice(1),
+          ];
+        });
+
+        // Section totals
+        const secTotals = getSectionTotals(section);
+        tableBody.push([
+          { content: 'Section Total', styles: { fontStyle: 'bold' as const } } as any,
+          { content: `${secTotals.totalPercentage.toFixed(0)}%`, styles: { fontStyle: 'bold' as const } } as any,
+          { content: fmt(secTotals.totalAmount), styles: { fontStyle: 'bold' as const } } as any,
+          { content: secTotals.totalBills > 0 ? fmt(secTotals.totalBills) : '-', styles: { fontStyle: 'bold' as const } } as any,
+          { content: secTotals.totalPaid > 0 ? fmt(secTotals.totalPaid) : '-', styles: { fontStyle: 'bold' as const } } as any,
+          '',
+          '',
+        ]);
+
+        autoTable(pdf, {
+          startY: y,
+          margin: { left: margin, right: margin },
+          head: [['Category', '%', 'Budget', 'Actual', 'Paid', 'Status', 'Payer']],
+          body: tableBody,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [30, 60, 55],
+            textColor: [255, 255, 255],
+            fontSize: 7,
+            fontStyle: 'bold',
+            cellPadding: 2,
+          },
+          bodyStyles: {
+            fontSize: 7,
+            cellPadding: 1.8,
+            textColor: [40, 40, 40],
+          },
+          alternateRowStyles: {
+            fillColor: [245, 248, 250],
+          },
+          columnStyles: {
+            0: { cellWidth: contentWidth * 0.25 },
+            1: { cellWidth: contentWidth * 0.08, halign: 'center' },
+            2: { cellWidth: contentWidth * 0.14, halign: 'right' },
+            3: { cellWidth: contentWidth * 0.14, halign: 'right' },
+            4: { cellWidth: contentWidth * 0.14, halign: 'right' },
+            5: { cellWidth: contentWidth * 0.12, halign: 'center' },
+            6: { cellWidth: contentWidth * 0.13, halign: 'center' },
+          },
+          didParseCell: (data) => {
+            // Color status cells
+            if (data.column.index === 5 && data.section === 'body') {
+              const val = String(data.cell.raw).toLowerCase();
+              if (val === 'paid') {
+                data.cell.styles.textColor = [16, 120, 80];
+                data.cell.styles.fontStyle = 'bold';
+              } else if (val === 'partial') {
+                data.cell.styles.textColor = [180, 120, 0];
+                data.cell.styles.fontStyle = 'bold';
+              } else if (val === 'pending') {
+                data.cell.styles.textColor = [140, 140, 140];
+              }
+            }
+            // Color payer cells
+            if (data.column.index === 6 && data.section === 'body') {
+              const val = String(data.cell.raw).toLowerCase();
+              if (val === 'groom') data.cell.styles.textColor = [0, 128, 128];
+              else if (val === 'bride') data.cell.styles.textColor = [180, 60, 100];
+              else if (val === 'joint') data.cell.styles.textColor = [100, 60, 140];
+            }
+          },
+        });
+
+        y = (pdf as any).lastAutoTable.finalY + 6;
+      }
+
+      // ---- Notes & Vendors section ----
+      const catNotes = allCategories
+        .filter(cat => {
+          const d = categoryData[cat.key] as CategoryExpense;
+          return (d?.notes && d.notes.trim().length > 0) || (d?.vendor && d.vendor.trim().length > 0);
+        })
+        .map(cat => {
+          const d = categoryData[cat.key] as CategoryExpense;
+          const contactParts: string[] = [];
+          if (d.vendorPhone) contactParts.push(d.vendorPhone);
+          if (d.vendorEmail) contactParts.push(d.vendorEmail);
+          const vendorInfo = [d.vendor || '', contactParts.join(' | ')].filter(Boolean).join('\n');
+          return {
+            name: `${cat.icon} ${cat.name}`,
+            notes: d.notes || '',
+            vendor: vendorInfo,
+            hasReceipt: !!d.receiptBase64,
+          };
+        });
+
+      if (catNotes.length > 0) {
+        if (y > pageHeight - 30) {
+          pdf.addPage();
+          y = margin;
+        }
+        pdf.setFillColor(16, 40, 36);
+        pdf.roundedRect(margin, y, contentWidth, 8, 1.5, 1.5, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('📝  NOTES & VENDORS', margin + 4, y + 5.5);
+        y += 10;
+
+        autoTable(pdf, {
+          startY: y,
+          margin: { left: margin, right: margin },
+          head: [['Category', 'Vendor / Contact', 'Notes', '📎']],
+          body: catNotes.map(n => [n.name, n.vendor || '-', n.notes || '-', n.hasReceipt ? '✓' : '']),
+          theme: 'grid',
+          headStyles: {
+            fillColor: [30, 60, 55],
+            textColor: [255, 255, 255],
+            fontSize: 7,
+            fontStyle: 'bold',
+            cellPadding: 2,
+          },
+          bodyStyles: { fontSize: 7, cellPadding: 1.8, textColor: [40, 40, 40] },
+          alternateRowStyles: { fillColor: [245, 248, 250] },
+          columnStyles: {
+            0: { cellWidth: contentWidth * 0.18 },
+            1: { cellWidth: contentWidth * 0.28 },
+            2: { cellWidth: contentWidth * 0.44 },
+            3: { cellWidth: contentWidth * 0.10, halign: 'center' as const },
+          },
+        });
+
+        y = (pdf as any).lastAutoTable.finalY + 6;
+      }
+
+      // ---- Footer ----
+      const totalPages = pdf.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFillColor(245, 245, 245);
+        pdf.rect(0, pageHeight - 10, pageWidth, 10, 'F');
+        pdf.setTextColor(140, 140, 140);
+        pdf.setFontSize(7);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text('Nikkah & Walima Planning Pro', margin, pageHeight - 4);
+        pdf.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 4, { align: 'right' });
+      }
+
+      pdf.save(`Wedding-Budget-Report-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  }, [isGeneratingPdf, budget, guests, totalAllocated, totalPercentage, selectedCurrency, categoryData, categoriesBySection, allCategories, expenseTotals, payerTotals, mahrActualCost, mahrPaymentType, grandTotalRequired]);
+
+  // ── CSV Export ───────────────────────────────────────────────────
+  const handleExportCSV = useCallback(() => {
+    const escapeCSV = (val: string) => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+
+    const headers = [
+      'Section', 'Category', 'Budget %', `Budget (${selectedCurrency.code})`,
+      `Actual (${selectedCurrency.code})`, `Paid (${selectedCurrency.code})`,
+      'Status', 'Payer', 'Vendor', 'Vendor Phone', 'Vendor Email',
+      'Due Date', 'Notes'
+    ];
+
+    const rows: string[][] = [];
+
+    const sections: CategorySection[] = ['events', 'personal', 'logistics'];
+    for (const section of sections) {
+      const cats = allCategories.filter(c => c.section === section);
+      for (const cat of cats) {
+        const data = categoryData[cat.key] as CategoryExpense;
+        if (!data) continue;
+        const budgetAmt = Math.round((budget * data.percentage) / 100);
+        rows.push([
+          SECTION_LABELS[section],
+          cat.name,
+          `${data.percentage}`,
+          `${budgetAmt}`,
+          `${data.actualCost || 0}`,
+          `${data.amountPaid || 0}`,
+          data.paymentStatus,
+          data.payer,
+          data.vendor || '',
+          data.vendorPhone || '',
+          data.vendorEmail || '',
+          data.dueDate || '',
+          data.notes || '',
+        ].map(escapeCSV));
+      }
+    }
+
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `budget-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [budget, selectedCurrency, categoryData, allCategories]);
+
   const getRecommendation = (category: string, amount: number) => {
     const recommendations: Record<string, string> = {
       'nikkah': amount > 2000 ? 'Premium mosque or hotel ceremony room' : amount > 1000 ? 'Well-appointed mosque hall' : 'Local masjid or simple venue',
@@ -616,7 +989,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
 
   // Card styles - neutral background with left border accent
   const getCardStyles = (payer: Payer) => {
-    const base = 'bg-slate-50 dark:bg-slate-700/50 border-l-4';
+    const base = 'bg-slate-50 dark:bg-zinc-700/50 border-l-4';
     switch (payer) {
       case 'groom':
         return `${base} border-l-teal-500 dark:border-l-teal-400`;
@@ -672,7 +1045,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
     // Mahr gets a special background to distinguish it
     const cardBgClass = isMahr 
       ? 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-700' 
-      : 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600';
+      : 'bg-slate-50 dark:bg-zinc-700/50 border-slate-200 dark:border-zinc-600';
     
     return (
       <div key={cat.key} data-card-key={cat.key} className={`rounded-xl ${cardBgClass} border border-l-4 ${getCardBorderStyle()} relative group transition-all scroll-mt-[130px]`}>
@@ -702,7 +1075,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                           if (e.key === 'Enter') handleRenameCustomCategory(cat.key);
                           if (e.key === 'Escape') { setEditingCustomCategory(null); setEditCategoryName(''); }
                         }}
-                        className="flex-1 px-2 h-7 text-xs font-semibold bg-white dark:bg-slate-800 border-2 border-emerald-500 rounded-md focus:outline-none text-slate-700 dark:text-white"
+                        className="flex-1 px-2 h-7 text-xs font-semibold bg-white dark:bg-zinc-800 border-2 border-emerald-500 rounded-md focus:outline-none text-slate-700 dark:text-white"
                         autoFocus
                         onClick={(e) => e.stopPropagation()}
                       />
@@ -900,7 +1273,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                             : p === 'bride'
                               ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'
                               : 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300'
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                          : 'bg-slate-100 dark:bg-zinc-700 text-slate-500 dark:text-slate-400'
                       }`}
                     >
                       {getPayerLabel(p)}
@@ -952,7 +1325,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                         setEditingCategory(null);
                         setEditingValue('');
                       }}
-                      className="w-full pl-5 pr-2 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-right font-semibold text-slate-700 dark:text-white text-xs focus:outline-none focus:border-emerald-400"
+                      className="w-full pl-5 pr-2 h-8 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-right font-semibold text-slate-700 dark:text-white text-xs focus:outline-none focus:border-emerald-400"
                     />
                   </div>
                 </div>
@@ -971,7 +1344,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
             {/* Payment Tracking Section - Collapsible */}
             {percentage > 0 && (() => {
               // Smart default: expanded if has data, collapsed if empty
-              const hasPaymentData = totalBill > 0 || amountPaid > 0 || data.vendor || data.notes;
+              const hasPaymentData = totalBill > 0 || amountPaid > 0 || data.vendor || data.vendorPhone || data.vendorEmail || data.notes || data.receiptBase64;
               const isPaymentExpanded = expandedPaymentTracking[cat.key] ?? hasPaymentData;
               
               const togglePaymentTracking = (e: React.MouseEvent) => {
@@ -983,7 +1356,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
               };
               
               return (
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-600">
+                <div className="pt-2 border-t border-slate-200 dark:border-zinc-600">
                   {/* Collapsible Header */}
                   <button
                     onClick={togglePaymentTracking}
@@ -1019,8 +1392,8 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                                 handleActualCostChange(cat.key, parseInt(val) || 0);
                               }}
                               placeholder={amount.toString()}
-                              className={`w-full pl-5 pr-2 h-8 bg-white dark:bg-slate-900/50 border rounded-lg text-xs font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
-                                isOverBudget ? 'border-red-300 dark:border-red-500' : 'border-slate-200 dark:border-slate-600'
+                              className={`w-full pl-5 pr-2 h-8 bg-white dark:bg-zinc-900/50 border rounded-lg text-xs font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
+                                isOverBudget ? 'border-red-300 dark:border-red-500' : 'border-slate-200 dark:border-zinc-600'
                               }`}
                             />
                           </div>
@@ -1039,8 +1412,8 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                                 handleAmountPaidChange(cat.key, parseInt(val) || 0);
                               }}
                               placeholder="0"
-                              className={`w-full pl-5 pr-2 h-8 bg-white dark:bg-slate-900/50 border rounded-lg text-xs font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
-                                isOverPaid ? 'border-orange-300 dark:border-orange-500' : 'border-slate-200 dark:border-slate-600'
+                              className={`w-full pl-5 pr-2 h-8 bg-white dark:bg-zinc-900/50 border rounded-lg text-xs font-medium text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 ${
+                                isOverPaid ? 'border-orange-300 dark:border-orange-500' : 'border-slate-200 dark:border-zinc-600'
                               }`}
                             />
                           </div>
@@ -1063,9 +1436,9 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                         </div>
                       )}
                       
-                      {/* Row 2: Vendor + Notes */}
-                      <div className="grid grid-cols-2 gap-2 items-start">
-                        {/* Vendor */}
+                      {/* Row 2: Vendor Name + Contact */}
+                      <div className="grid grid-cols-3 gap-2 items-start">
+                        {/* Vendor Name */}
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Vendor</label>
                           <input
@@ -1073,9 +1446,35 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                             value={data.vendor || ''}
                             onChange={(e) => updateExpenseField(cat.key, 'vendor', e.target.value)}
                             placeholder="Vendor name..."
-                            className="w-full px-2 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-xs text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                            className="w-full px-2 h-8 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
                           />
                         </div>
+                        {/* Vendor Phone */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Phone</label>
+                          <input
+                            type="tel"
+                            value={data.vendorPhone || ''}
+                            onChange={(e) => updateExpenseField(cat.key, 'vendorPhone', e.target.value)}
+                            placeholder="Phone..."
+                            className="w-full px-2 h-8 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                          />
+                        </div>
+                        {/* Vendor Email */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Email</label>
+                          <input
+                            type="email"
+                            value={data.vendorEmail || ''}
+                            onChange={(e) => updateExpenseField(cat.key, 'vendorEmail', e.target.value)}
+                            placeholder="Email..."
+                            className="w-full px-2 h-8 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400"
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Row 3: Notes + Receipt Upload */}
+                      <div className="grid grid-cols-2 gap-2 items-start">
                         {/* Notes - Auto-expanding textarea */}
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Notes</label>
@@ -1109,15 +1508,72 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                             }}
                             placeholder="Any notes..."
                             rows={1}
-                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-xs text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 resize-none overflow-hidden"
+                            className="w-full px-2 py-1.5 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs text-slate-700 dark:text-white focus:outline-none focus:border-emerald-400 resize-none overflow-hidden"
                             style={{ minHeight: '32px' }}
                           />
+                        </div>
+                        {/* Receipt Upload */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Receipt</label>
+                          {data.receiptBase64 ? (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => {
+                                  // Show receipt in a new window
+                                  const w = window.open('');
+                                  if (w) {
+                                    w.document.write(`<img src="${data.receiptBase64}" style="max-width:100%;height:auto;" />`);
+                                    w.document.title = `Receipt — ${cat.name}`;
+                                  }
+                                }}
+                                className="flex-1 h-8 px-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 rounded-lg text-[11px] font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors truncate"
+                                title="View receipt"
+                              >
+                                📎 View Receipt
+                              </button>
+                              <button
+                                onClick={() => updateExpenseField(cat.key, 'receiptBase64', undefined)}
+                                className="h-8 w-8 flex items-center justify-center bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors flex-shrink-0"
+                                title="Remove receipt"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="block">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  // Size warning: 500KB limit for localStorage
+                                  if (file.size > 500 * 1024) {
+                                    alert(`Receipt image is ${(file.size / 1024).toFixed(0)}KB. For localStorage reliability, please use an image under 500KB. Try compressing or taking a lower-resolution photo.`);
+                                    return;
+                                  }
+                                  const reader = new FileReader();
+                                  reader.onload = (ev) => {
+                                    const base64 = ev.target?.result as string;
+                                    updateExpenseField(cat.key, 'receiptBase64', base64);
+                                  };
+                                  reader.readAsDataURL(file);
+                                  // Reset input
+                                  e.target.value = '';
+                                }}
+                              />
+                              <span className="flex items-center justify-center h-8 px-2 bg-white dark:bg-zinc-900/50 border border-dashed border-slate-300 dark:border-zinc-600 rounded-lg text-[11px] text-slate-500 dark:text-slate-400 cursor-pointer hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                                📷 Upload Receipt
+                              </span>
+                            </label>
+                          )}
                         </div>
                       </div>
                       
                       {/* Payment Status Summary - compact */}
                       {totalBill > 0 && (
-                        <div className="text-[11px] text-center pt-1.5 border-t border-slate-200 dark:border-slate-600">
+                        <div className="text-[11px] text-center pt-1.5 border-t border-slate-200 dark:border-zinc-600">
                           {pendingAmount > 0 ? (
                             <span className="text-amber-600 dark:text-amber-400 font-medium">
                               {selectedCurrency.symbol}{pendingAmount.toLocaleString()} remaining
@@ -1245,7 +1701,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                   <button
                     onClick={(e) => { e.stopPropagation(); fetchSilverPrice(); }}
                     disabled={isFetchingSilver}
-                    className="text-[11px] font-semibold bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-md flex items-center gap-1 transition-colors disabled:opacity-50"
+                    className="text-[11px] font-semibold bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-md flex items-center gap-1 transition-colors disabled:opacity-50"
                   >
                     <RefreshCw className={`w-3 h-3 ${isFetchingSilver ? 'animate-spin' : ''}`} />
                     {isFetchingSilver ? 'Updating...' : 'Update Prices'}
@@ -1375,7 +1831,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                         setSelectedMahrCurrency(null);
                       }}
                       placeholder="Enter custom Mahr amount"
-                      className="w-full pl-6 pr-2 h-8 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                      className="w-full pl-6 pr-2 h-8 text-xs rounded-lg border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-900/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                     />
                   </div>
                 </div>
@@ -1400,7 +1856,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                         }));
                       }}
                       placeholder="0"
-                      className="w-full pl-6 pr-2 h-8 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                      className="w-full pl-6 pr-2 h-8 text-xs rounded-lg border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-900/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                     />
                   </div>
                 </div>
@@ -1410,23 +1866,23 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                   <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
                     Payment Type
                   </label>
-                  <div className="flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden">
+                  <div className="flex rounded-lg border border-slate-300 dark:border-zinc-600 overflow-hidden">
                     <button
                       onClick={(e) => { e.stopPropagation(); setMahrPaymentType('prompt'); }}
                       className={`flex-1 h-8 text-xs font-semibold transition-colors ${
                         mahrPaymentType === 'prompt'
                           ? 'bg-cyan-600 text-white'
-                          : 'bg-white dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          : 'bg-white dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
                       Prompt <span className="hidden sm:inline text-[11px] opacity-75">(Mu'ajjal)</span>
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setMahrPaymentType('deferred'); }}
-                      className={`flex-1 h-8 text-xs font-semibold transition-colors border-l border-slate-300 dark:border-slate-600 ${
+                      className={`flex-1 h-8 text-xs font-semibold transition-colors border-l border-slate-300 dark:border-zinc-600 ${
                         mahrPaymentType === 'deferred'
                           ? 'bg-slate-600 dark:bg-slate-500 text-white'
-                          : 'bg-white dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          : 'bg-white dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
                       Deferred <span className="hidden sm:inline text-[11px] opacity-75">(Mu'wajjal)</span>
@@ -1464,10 +1920,10 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         {/* Section Header - Clickable to expand/collapse */}
         <button
           onClick={toggleSection}
-          className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between transition-all border border-slate-200 dark:border-slate-600 ${
+          className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between transition-all border border-slate-200 dark:border-zinc-600 ${
             isExpanded 
-              ? 'bg-slate-100 dark:bg-slate-700 rounded-b-none border-b-0' 
-              : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'
+              ? 'bg-slate-100 dark:bg-zinc-700 rounded-b-none border-b-0' 
+              : 'bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-slate-700'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -1503,21 +1959,21 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         
         {/* Expanded content */}
         {isExpanded && (
-          <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-b-xl p-2.5 pt-2 border border-t-0 border-slate-200 dark:border-slate-600">
+          <div className="bg-slate-50/50 dark:bg-zinc-800/50 rounded-b-xl p-2.5 pt-2 border border-t-0 border-slate-200 dark:border-zinc-600">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 items-start">
               {categories.map((cat, index) => renderCategoryCard(cat, isFirstSection && index === 0))}
             </div>
             
             {/* Inline Add Item Form (shown when adding to this section) */}
             {addingToSection === section && (
-              <div className="mt-2 p-3 bg-slate-100 dark:bg-slate-700/50 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-600/50">
+              <div className="mt-2 p-3 bg-slate-100 dark:bg-zinc-700/50 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-600/50">
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
                     placeholder={`Enter item name...`}
-                    className="flex-1 px-2.5 h-8 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                    className="flex-1 px-2.5 h-8 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleAddCustomCategory(section);
                       if (e.key === 'Escape') { setAddingToSection(null); setNewCategoryName(''); }
@@ -1547,7 +2003,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
               {addingToSection !== section && (
                 <button
                   onClick={() => setAddingToSection(section)}
-                  className="w-full py-2 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors flex items-center justify-center gap-1.5"
+                  className="w-full py-2 border-2 border-dashed border-slate-300 dark:border-zinc-600 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 transition-colors flex items-center justify-center gap-1.5"
                 >
                   <span>+</span> Add item to {sectionInfo.title}
                 </button>
@@ -1581,19 +2037,30 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">Wedding Budget Architect</h2>
         <p className="text-slate-600 dark:text-slate-400 italic">"The most blessed wedding is the one with the least expenses."</p>
         
-        {/* Print Button - Top Right */}
-        <button
-          onClick={() => window.print()}
-          className="absolute right-0 top-0 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          title="Print Budget Plan"
-        >
-          <Calculator className="w-4 h-4" />
-          <span className="hidden sm:inline">Print</span>
-        </button>
+        {/* Export Buttons - Top Right */}
+        <div className="absolute right-0 top-0 flex items-center gap-1">
+          <button
+            onClick={handleExportCSV}
+            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+            title="Export expenses as CSV spreadsheet"
+          >
+            <span className="hidden sm:inline">CSV</span>
+            <span className="sm:hidden text-sm">📊</span>
+          </button>
+          <button
+            onClick={handleDownloadPdf}
+            disabled={isGeneratingPdf}
+            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+            title="Download Budget Report as PDF"
+          >
+            <Calculator className="w-4 h-4" />
+            <span className="hidden sm:inline">{isGeneratingPdf ? 'Generating...' : 'PDF'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Budget & Guest Input - Compact Header */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-3 md:p-4 mb-4 border border-slate-100 dark:border-slate-700">
+      <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-lg p-3 md:p-4 mb-4 border border-slate-100 dark:border-zinc-700">
         {/* Currency + Budget + Guests — single row on desktop, Currency full-width on mobile with Budget+Guests side by side */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 items-end mb-2">
           <div className="col-span-2 md:col-span-1">
@@ -1614,8 +2081,8 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 value={totalBudget} 
                 onChange={(e) => setTotalBudget(e.target.value)} 
                 placeholder="25,000" 
-                className={`w-full pl-7 pr-2 h-8 bg-slate-50 dark:bg-slate-900/50 border focus:bg-white dark:focus:bg-slate-800 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white ${
-                  budgetError ? 'border-red-300 focus:border-red-400' : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
+                className={`w-full pl-7 pr-2 h-8 bg-slate-50 dark:bg-zinc-900/50 border focus:bg-white dark:focus:bg-slate-800 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white ${
+                  budgetError ? 'border-red-300 focus:border-red-400' : 'border-slate-200 dark:border-zinc-600 focus:border-emerald-400'
                 }`}
               />
             </div>
@@ -1632,8 +2099,8 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 value={guestCount} 
                 onChange={(e) => setGuestCount(e.target.value)} 
                 placeholder="200" 
-                className={`w-full pl-7 pr-2 h-8 bg-slate-50 dark:bg-slate-900/50 border focus:bg-white dark:focus:bg-slate-800 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white ${
-                  guestError ? 'border-red-300 focus:border-red-400' : 'border-slate-200 dark:border-slate-600 focus:border-emerald-400'
+                className={`w-full pl-7 pr-2 h-8 bg-slate-50 dark:bg-zinc-900/50 border focus:bg-white dark:focus:bg-slate-800 rounded-lg transition-all outline-none text-xs font-semibold text-slate-800 dark:text-white ${
+                  guestError ? 'border-red-300 focus:border-red-400' : 'border-slate-200 dark:border-zinc-600 focus:border-emerald-400'
                 }`}
               />
             </div>
@@ -1653,7 +2120,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         
         {/* Templates (hidden by default) */}
         {showTemplates && (
-          <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl animate-in slide-in-from-top-2 duration-200">
+          <div className="mt-2 p-3 bg-slate-50 dark:bg-zinc-700/50 rounded-xl animate-in slide-in-from-top-2 duration-200">
             <div className="flex flex-wrap justify-center gap-2">
               {getBudgetTemplates(currencyCode, selectedCurrency.symbol).map(template => (
                 <button
@@ -1797,7 +2264,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
           
           {/* Payer Breakdown - inline */}
           {totalAllocated > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-200/50 dark:border-slate-600/50">
+            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-200/50 dark:border-zinc-600/50">
               <span className="py-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400 mr-1">By payer:</span>
               {payerTotals.joint > 0 && (
                 <span className="px-1.5 py-0.5 rounded text-[12px] font-bold bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-300">
@@ -1820,13 +2287,13 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
       </div>
 
       {/* Financial Summary - Always shown */}
-      <div className="bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/80 rounded-2xl mb-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/80 rounded-2xl mb-4 border border-slate-200 dark:border-zinc-700 shadow-sm">
         <div className="px-4 py-2.5">
           <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-2">
             Financial Summary
           </h3>
         </div>
-        <div className="border-t border-slate-200 dark:border-slate-700" />
+        <div className="border-t border-slate-200 dark:border-zinc-700" />
         <div className="p-3 space-y-2">
           <div className="flex justify-between items-start text-xs">
             <span className="text-slate-500 dark:text-slate-400">Wedding Expenses</span>
@@ -1857,7 +2324,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
             </div>
           )}
           {/* Hero row - Total Cash Required */}
-          <div className="bg-slate-800 dark:bg-slate-900 rounded-xl p-3 mt-3 -mx-1">
+          <div className="bg-slate-800 dark:bg-zinc-900 rounded-xl p-3 mt-3 -mx-1">
             <div className="flex justify-between items-center">
               <span className="font-bold text-slate-200 dark:text-slate-300">Total Cash Required</span>
               <span className="text-2xl md:text-3xl font-black text-white">
@@ -1888,7 +2355,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
         const displayPercentage = Math.min(100, paymentPercentage);
         
         return (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl mb-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+          <div className="bg-white dark:bg-zinc-800 rounded-2xl mb-4 border border-slate-200 dark:border-zinc-700 shadow-sm">
             <div className="flex items-center justify-between px-4 md:px-6 py-2.5">
               <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-2">
                 Payment Tracking
@@ -1899,10 +2366,10 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 </span>
               )}
             </div>
-            <div className="border-t border-slate-200 dark:border-slate-700" />
+            <div className="border-t border-slate-200 dark:border-zinc-700" />
             <div className="p-3 md:p-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-2.5">
+              <div className="bg-slate-50 dark:bg-zinc-700/50 rounded-lg p-2.5">
                 <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Budget</p>
                 <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mt-0.5">
                   {selectedCurrency.symbol}{grandTotalRequired.toLocaleString()}
@@ -1961,7 +2428,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
       {showResetConfirm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setShowResetConfirm(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+          <div className="bg-white dark:bg-zinc-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
@@ -1972,14 +2439,14 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ onNavigateToMahr }
                 <p className="text-sm text-slate-500 dark:text-slate-400">This cannot be undone</p>
               </div>
             </div>
-            <div className="mb-6 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="mb-6 p-3 bg-slate-50 dark:bg-zinc-900/50 rounded-xl border border-slate-200 dark:border-zinc-700">
               <p className="text-sm text-slate-600 dark:text-slate-300">
                 All budget percentages, payer assignments, and custom categories will be reset to their default values.
               </p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowResetConfirm(false)}
-                className="flex-1 py-2.5 px-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                className="flex-1 py-2.5 px-4 bg-slate-100 dark:bg-zinc-700 text-slate-700 dark:text-slate-300 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
                 Cancel
               </button>
               <button onClick={confirmResetDefaults}

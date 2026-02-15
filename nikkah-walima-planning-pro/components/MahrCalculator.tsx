@@ -1,10 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
-import { Info, Sparkles, X, ChevronRight, Scroll, ChevronDown, RefreshCw, BookOpen } from './Icons';
+import { Info, Sparkles, X, ChevronRight, Scroll, ChevronDown, RefreshCw, BookOpen, Calculator } from './Icons';
 import { CustomSelect } from './CustomSelect';
 import { MAHR_TYPES, SILVER_NISAB_DIVISOR, CURRENCIES } from '../constants';
 import { MahrType } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Exchange rates from GBP (must match BudgetPlanner)
 const EXCHANGE_RATES_FROM_GBP: Record<string, number> = {
@@ -47,6 +49,9 @@ export const MahrCalculator: React.FC = () => {
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
     'minimum': isDesktop, 'azwaj': isDesktop, 'fatimi': isDesktop
   });
+  const [customMahrAmount, setCustomMahrAmount] = useState<string>('');
+  const [showComparison, setShowComparison] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const toggleCard = (id: string) => {
     setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
@@ -148,6 +153,110 @@ export const MahrCalculator: React.FC = () => {
     setPriceChange(null);
   };
 
+  // Computed mahr values
+  const mahrValues = useMemo(() => {
+    return MAHR_TYPES.map(mahr => ({
+      ...mahr,
+      value: mahr.grams * silverPricePerGram,
+      formatted: `${selectedCurrency.symbol}${(mahr.grams * silverPricePerGram).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    }));
+  }, [silverPricePerGram, selectedCurrency]);
+
+  const customMahrNum = parseFloat(customMahrAmount) || 0;
+  const maxMahrValue = Math.max(...mahrValues.map(m => m.value), customMahrNum);
+
+  // PDF export
+  const handleDownloadPdf = async () => {
+    if (isGeneratingPdf) return;
+    setIsGeneratingPdf(true);
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 14;
+      const contentWidth = pageWidth - margin * 2;
+      let y = margin;
+      const sym = selectedCurrency.symbol;
+
+      // Header
+      pdf.setFillColor(16, 40, 36);
+      pdf.rect(0, 0, pageWidth, 36, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(20);
+      pdf.text('Mahr Breakdown Report', margin, 16);
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, margin, 24);
+      pdf.text(`Silver Price: ${sym}${silverPricePerGram.toFixed(4)}/gram  |  Currency: ${selectedCurrency.name}`, margin, 30);
+      y = 44;
+
+      // Mahr types table
+      autoTable(pdf, {
+        startY: y,
+        margin: { left: margin, right: margin },
+        head: [['Mahr Type', 'Arabic Name', 'Silver (grams)', 'Value', 'Description']],
+        body: mahrValues.map(m => [
+          m.name, m.arabicName, `${m.grams.toFixed(1)}g`, m.formatted, m.description,
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [30, 60, 55], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold', cellPadding: 2.5 },
+        bodyStyles: { fontSize: 8, cellPadding: 2.2, textColor: [40, 40, 40] },
+        alternateRowStyles: { fillColor: [245, 248, 250] },
+        columnStyles: {
+          0: { cellWidth: 30, fontStyle: 'bold' },
+          1: { cellWidth: 22, halign: 'center' },
+          2: { cellWidth: 22, halign: 'center' },
+          3: { cellWidth: 25, halign: 'right', fontStyle: 'bold' },
+          4: { cellWidth: contentWidth - 30 - 22 - 22 - 25 },
+        },
+      });
+      y = (pdf as any).lastAutoTable.finalY + 8;
+
+      // Comparison with custom amount
+      if (customMahrNum > 0) {
+        pdf.setFillColor(240, 235, 225);
+        pdf.roundedRect(margin, y, contentWidth, 12, 2, 2, 'F');
+        pdf.setTextColor(80, 60, 30);
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`Your Mahr: ${sym}${customMahrNum.toLocaleString()}`, margin + 4, y + 5);
+        const closest = mahrValues.reduce((prev, curr) => Math.abs(curr.value - customMahrNum) < Math.abs(prev.value - customMahrNum) ? curr : prev);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Closest Sunnah type: ${closest.name} (${closest.formatted})`, margin + 4, y + 10);
+        y += 16;
+      }
+
+      // Educational note
+      pdf.setFillColor(245, 248, 250);
+      pdf.roundedRect(margin, y, contentWidth, 18, 2, 2, 'F');
+      pdf.setTextColor(60, 60, 60);
+      pdf.setFontSize(7.5);
+      pdf.setFont('helvetica', 'italic');
+      const noteText = 'The Prophet (peace be upon him) said: "The best of marriages is the one that is easiest." (Abu Dawud). Mahr should reflect sincerity and mutual respect, not financial burden.';
+      pdf.text(noteText, margin + 4, y + 6, { maxWidth: contentWidth - 8 });
+
+      // Footer
+      const totalPages = pdf.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFillColor(245, 245, 245);
+        pdf.rect(0, pageHeight - 10, pageWidth, 10, 'F');
+        pdf.setTextColor(140, 140, 140);
+        pdf.setFontSize(7);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text('Nikkah & Walima Planning Pro', margin, pageHeight - 4);
+        pdf.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 4, { align: 'right' });
+      }
+
+      pdf.save(`mahr-breakdown-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      console.error('Mahr PDF generation failed:', err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   // Color configs for each mahr type
   const colorConfig: Record<string, { 
     borderColor: string; glowShadow: string;
@@ -197,13 +306,22 @@ export const MahrCalculator: React.FC = () => {
       }}
     >
       {/* Header */}
-      <div className="text-center mb-6">
+      <div className="text-center mb-6 relative">
         <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">Authentic Mahr Calculator</h2>
         <p className="text-slate-600 dark:text-slate-400 italic">Silver-based mahr valuations using live market rates</p>
+        <button
+          onClick={handleDownloadPdf}
+          disabled={isGeneratingPdf}
+          className="absolute right-0 top-0 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+          title="Download Mahr Breakdown as PDF"
+        >
+          <Calculator className="w-4 h-4" />
+          <span className="hidden sm:inline">{isGeneratingPdf ? 'Generating...' : 'Download PDF'}</span>
+        </button>
       </div>
 
       {/* Controls Card */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-3 md:p-4 mb-4 border border-slate-200 dark:border-slate-700">
+      <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm p-3 md:p-4 mb-4 border border-slate-200 dark:border-zinc-700">
         {/* Info text */}
         <p className="text-[11px] italic text-center text-slate-400 dark:text-slate-500 mb-3">
           Islamic Mahr traditions are historically tied to the weight of Silver Dirhams. Fetch live rates to get accurate valuations.
@@ -240,7 +358,7 @@ export const MahrCalculator: React.FC = () => {
                   setLastUpdated(null);
                   setPriceChange(null);
                 }}
-                className="w-full pl-10 pr-2 h-8 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-emerald-400 transition-all"
+                className="w-full pl-10 pr-2 h-8 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-emerald-400 transition-all"
               />
             </div>
           </div>
@@ -250,7 +368,7 @@ export const MahrCalculator: React.FC = () => {
             disabled={isFetching}
             className={`flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold transition-all active:scale-[0.98] border ${
               isFetching 
-              ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 border-slate-200 dark:border-slate-600 cursor-not-allowed' 
+              ? 'bg-slate-100 dark:bg-zinc-700 text-slate-400 border-slate-200 dark:border-zinc-600 cursor-not-allowed' 
               : 'bg-transparent text-emerald-700 dark:text-emerald-400 border-emerald-500 dark:border-emerald-500/60 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 dark:hover:bg-emerald-600 dark:hover:text-white dark:hover:border-emerald-600'
             }`}
           >
@@ -290,11 +408,11 @@ export const MahrCalculator: React.FC = () => {
 
         {/* Sources */}
         {sources.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-zinc-700">
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Sources:</p>
             <div className="flex flex-wrap gap-1">
               {sources.map((s, idx) => (
-                <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[11px] bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[11px] bg-slate-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
                   {s.title}
                 </a>
               ))}
@@ -313,7 +431,7 @@ export const MahrCalculator: React.FC = () => {
           return (
             <div 
               key={mahr.id} 
-              className={`relative rounded-xl overflow-hidden border-2 ${colors.borderColor} bg-white dark:bg-slate-800/50 shadow-md ${colors.glowShadow} transition-all hover:shadow-lg hover:-translate-y-0.5`}
+              className={`relative rounded-xl overflow-hidden border-2 ${colors.borderColor} bg-white dark:bg-zinc-800/50 shadow-md ${colors.glowShadow} transition-all hover:shadow-lg hover:-translate-y-0.5`}
             >
               {/* Card header */}
               <div className="px-3 pt-3 pb-2">
@@ -337,7 +455,7 @@ export const MahrCalculator: React.FC = () => {
               </div>
 
               {/* Divider */}
-              <div className="mx-3 border-t border-slate-100 dark:border-slate-700" />
+              <div className="mx-3 border-t border-slate-100 dark:border-zinc-700" />
 
               {/* Card body */}
               <div className="relative z-10 px-3 py-2">
@@ -357,7 +475,7 @@ export const MahrCalculator: React.FC = () => {
 
                 {/* Expanded details */}
                 {isExpanded && (
-                  <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700">
+                  <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-zinc-700">
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
                       {mahr.details}
                     </p>
@@ -372,7 +490,7 @@ export const MahrCalculator: React.FC = () => {
       {/* Educational Cards - Side by side on desktop */}
       <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 ${showPaymentTypes && showPrinciples ? 'items-stretch' : 'items-start'}`}>
         {/* Prompt vs Deferred */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
+        <div className="bg-white dark:bg-zinc-800 rounded-xl border border-slate-200 dark:border-zinc-700 overflow-hidden flex flex-col">
           <button
             onClick={() => setShowPaymentTypes(!showPaymentTypes)}
             className="w-full px-3 py-2.5 flex items-center justify-between text-left"
@@ -385,7 +503,7 @@ export const MahrCalculator: React.FC = () => {
           </button>
           
           {showPaymentTypes && (
-            <div className="px-3 pb-3 border-t border-slate-100 dark:border-slate-700 flex-1">
+            <div className="px-3 pb-3 border-t border-slate-100 dark:border-zinc-700 flex-1">
               <div className="space-y-2 mt-2.5 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 <div className="space-y-2">
                   <div className="p-2.5 rounded-lg bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800/50">
@@ -394,7 +512,7 @@ export const MahrCalculator: React.FC = () => {
                       Paid immediately at the time of the Nikkah ceremony. This is the most common practice and is the bride's right to receive before the marriage is consummated.
                     </p>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600">
+                  <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-700/50 border border-slate-200 dark:border-zinc-600">
                     <p className="font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wide mb-1">Deferred (Mu'wajjal)</p>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
                       Payment is delayed — typically payable upon the wife's request, divorce, or the husband's death. Some couples split the Mahr into both portions.
@@ -410,7 +528,7 @@ export const MahrCalculator: React.FC = () => {
         </div>
 
         {/* Mahr Principles in Islam */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
+        <div className="bg-white dark:bg-zinc-800 rounded-xl border border-slate-200 dark:border-zinc-700 overflow-hidden flex flex-col">
           <button
             onClick={() => setShowPrinciples(!showPrinciples)}
             className="w-full px-3 py-2.5 flex items-center justify-between text-left"
@@ -423,7 +541,7 @@ export const MahrCalculator: React.FC = () => {
           </button>
           
           {showPrinciples && (
-            <div className="px-3 pb-3 border-t border-slate-100 dark:border-slate-700 flex-1">
+            <div className="px-3 pb-3 border-t border-slate-100 dark:border-zinc-700 flex-1">
             <div className="space-y-2 mt-2.5">
               <div className="flex gap-2 items-baseline">
                 <span className="text-emerald-500 dark:text-emerald-400 flex-shrink-0 text-sm leading-none">•</span>
@@ -447,6 +565,80 @@ export const MahrCalculator: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Mahr Comparison Tool */}
+      <div className="bg-white dark:bg-zinc-800 rounded-xl border border-slate-200 dark:border-zinc-700 overflow-hidden mb-4">
+        <button
+          onClick={() => setShowComparison(!showComparison)}
+          className="w-full px-3 py-2.5 flex items-center justify-between text-left"
+        >
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+            Mahr Comparison Tool
+          </span>
+          <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${showComparison ? 'rotate-180' : ''}`} />
+        </button>
+        {showComparison && (
+          <div className="px-3 pb-4 border-t border-slate-100 dark:border-zinc-700 mt-0">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2.5 mb-3">
+              Enter your desired Mahr amount to see how it compares to the Sunnah types.
+            </p>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{selectedCurrency.symbol}</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={customMahrAmount}
+                onChange={(e) => setCustomMahrAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                placeholder="Enter your Mahr amount"
+                className="flex-1 h-8 px-2.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-emerald-400 transition-all"
+              />
+            </div>
+
+            {/* Visual bar comparison */}
+            <div className="space-y-2.5">
+              {mahrValues.map(m => {
+                const pct = maxMahrValue > 0 ? (m.value / maxMahrValue) * 100 : 0;
+                const barColor = m.id === 'minimum' ? 'bg-cyan-500' : m.id === 'azwaj' ? 'bg-emerald-500' : 'bg-purple-500';
+                return (
+                  <div key={m.id}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{m.name}</span>
+                      <span className="text-[11px] font-bold text-slate-800 dark:text-white">{m.formatted}</span>
+                    </div>
+                    <div className="w-full h-3 bg-slate-100 dark:bg-zinc-700 rounded-full overflow-hidden">
+                      <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{m.grams.toFixed(1)}g silver</p>
+                  </div>
+                );
+              })}
+
+              {/* User's amount bar */}
+              {customMahrNum > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">Your Mahr</span>
+                    <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300">{selectedCurrency.symbol}{customMahrNum.toLocaleString()}</span>
+                  </div>
+                  <div className="w-full h-3 bg-slate-100 dark:bg-zinc-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${maxMahrValue > 0 ? Math.min(100, (customMahrNum / maxMahrValue) * 100) : 0}%` }} />
+                  </div>
+                  {(() => {
+                    const closest = mahrValues.reduce((prev, curr) => Math.abs(curr.value - customMahrNum) < Math.abs(prev.value - customMahrNum) ? curr : prev);
+                    const ratio = closest.value > 0 ? (customMahrNum / closest.value) : 0;
+                    return (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                        {ratio > 1.05 ? `${((ratio - 1) * 100).toFixed(0)}% above` : ratio < 0.95 ? `${((1 - ratio) * 100).toFixed(0)}% below` : 'Equal to'} {closest.name} ({closest.formatted})
+                      </p>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Workflow hint */}

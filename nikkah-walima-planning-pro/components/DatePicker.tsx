@@ -151,7 +151,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
         ref={triggerRef}
         type="button"
         onClick={handleOpen}
-        className={`w-full h-8 pl-8 pr-7 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg text-left text-xs font-semibold text-slate-800 dark:text-white truncate transition-all outline-none focus:border-emerald-400 ${isOpen ? 'border-emerald-400 dark:border-emerald-400' : ''}`}
+        className={`w-full h-8 pl-8 pr-7 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-left text-xs font-semibold text-slate-800 dark:text-white truncate transition-all outline-none focus:border-emerald-400 ${isOpen ? 'border-emerald-400 dark:border-emerald-400' : ''}`}
       >
         {value ? (
           <span>{formatDate(value)}</span>
@@ -166,7 +166,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
 
       {isOpen && (
         <div
-          className={`absolute z-50 w-64 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200/80 dark:border-slate-600/80 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] p-3 ${
+          className={`absolute z-50 w-64 bg-white/95 dark:bg-zinc-800/95 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-600/80 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] p-3 ${
             opensUp ? 'bottom-full mb-1' : 'top-full mt-1'
           }`}
         >
@@ -219,7 +219,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
                     isSelected
                       ? 'bg-emerald-600 text-white font-bold'
                       : isToday
-                        ? 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white font-semibold ring-1 ring-slate-300 dark:ring-slate-500'
+                        ? 'bg-slate-100 dark:bg-zinc-700 text-slate-800 dark:text-white font-semibold ring-1 ring-slate-300 dark:ring-slate-500'
                         : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium'
                   }`}
                 >
@@ -230,7 +230,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           </div>
 
           {/* Today shortcut */}
-          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-zinc-700">
             <button
               type="button"
               onClick={() => {
