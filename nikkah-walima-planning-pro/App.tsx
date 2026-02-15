@@ -16,7 +16,7 @@ import { useLocalStorage } from './hooks/useLocalStorage';
 import { TabType } from './types';
 
 const AppContent: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('budget');
+  const [activeTab, setActiveTab] = useLocalStorage<TabType>('active-tab', 'budget');
   const [theme, toggleTheme] = useTheme();
   const [showAccount, setShowAccount] = useState(false);
   const [hasEnteredApp, setHasEnteredApp] = useLocalStorage<boolean>('has-entered-app', false);
