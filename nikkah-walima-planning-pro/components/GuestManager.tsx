@@ -1,0 +1,2644 @@
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useScrollLock } from '../hooks/useScrollLock';
+import { 
+  Guest, 
+  GuestSide, 
+  GuestGender, 
+  GuestType,
+  GuestRole,
+  RsvpStatus,
+  GuestGroup,
+  WeddingEventConfig,
+  GuestManagerData 
+} from '../types';
+import { Users, Plus, Trash, Edit, X, Check, ChevronDown, SettingsIcon } from './Icons';
+import { CustomSelect } from './CustomSelect';
+import { EventSettingsModal, ALL_EVENT_PRESETS } from './EventSettingsModal';
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+const generateId = (): string => Math.random().toString(36).substring(2, 9);
+
+const GUEST_ROLES: { value: GuestRole; label: string; shortLabel: string; icon: string }[] = [
+  { value: 'guest', label: 'Guest', shortLabel: 'Guest', icon: '👤' },
+  { value: 'vip', label: 'VIP / Close Family', shortLabel: 'VIP', icon: '⭐' },
+  { value: 'bridesmaid', label: 'Bridesmaid', shortLabel: 'Bridesmaid', icon: '👗' },
+  { value: 'groomsman', label: 'Groomsman', shortLabel: 'Groomsman', icon: '🤵' },
+  { value: 'colleague', label: 'Colleague', shortLabel: 'Colleague', icon: '💼' },
+  { value: 'wali', label: 'Wali', shortLabel: 'Wali', icon: '📜' },
+  { value: 'witness', label: 'Witness', shortLabel: 'Witness', icon: '✍️' },
+];
+
+// ALL_EVENT_PRESETS is imported from EventSettingsModal
+
+const DEFAULT_EVENTS: WeddingEventConfig[] = [
+  { id: 'nikkah', name: 'Nikkah', icon: '💍', enabled: true },
+  { id: 'walima', name: 'Walima', icon: '🍽️', enabled: true },
+  { id: 'mehndi', name: 'Mehndi', icon: '🌸', enabled: false },
+  { id: 'dholki', name: 'Dholki', icon: '🪘', enabled: false },
+  { id: 'civil', name: 'Civil Registry', icon: '📝', enabled: false },
+];
+
+// Auto-capitalize: "john smith" => "John Smith"
+const autoCapitalize = (name: string): string => {
+  return name.replace(/\b\w/g, c => c.toUpperCase());
+};
+
+const getDefaultGuestManagerData = (): GuestManagerData => ({
+  guests: [],
+  groups: [],
+  events: DEFAULT_EVENTS,
+  segregationMode: false,
+});
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const createGuest = (
+  name: string,
+  side: GuestSide,
+  gender: GuestGender,
+  type: GuestType,
+  role: GuestRole,
+  invitedTo: string[],
+  groupId?: string
+): Guest => ({
+  id: generateId(),
+  name: autoCapitalize(name),
+  side,
+  gender,
+  type,
+  role,
+  rsvpStatus: 'pending',
+  groupId,
+  invitedTo,
+  seating: {},
+  createdAt: new Date().toISOString(),
+});
+
+// CSV Template generation
+const generateCSVTemplate = (): string => {
+  const headers = ['Name', 'Group/Family', 'Side (groom/bride/joint)', 'Gender (male/female)', 'Type (adult/child)', 'Role (guest/vip/colleague/wali/witness)', 'Phone'];
+  const exampleRows = [
+    ['John Smith', 'The Smith Family', 'groom', 'male', 'adult', 'vip', '+44 123 456 7890'],
+    ['Jane Smith', 'The Smith Family', 'groom', 'female', 'adult', 'vip', ''],
+    ['Ahmed Khan', '', 'bride', 'male', 'adult', 'guest', ''],
+  ];
+  return [headers.join(','), ...exampleRows.map(r => r.map(f => `"${f}"`).join(','))].join('\n');
+};
+
+// CSV Parsing
+const parseCSV = (text: string): string[][] => {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[i + 1] === '"') { currentField += '"'; i++; }
+        else inQuotes = false;
+      } else {
+        currentField += char;
+      }
+    } else {
+      if (char === '"') { inQuotes = true; }
+      else if (char === ',') { currentRow.push(currentField.trim()); currentField = ''; }
+      else if (char === '\n' || (char === '\r' && text[i + 1] === '\n')) {
+        if (char === '\r') i++;
+        currentRow.push(currentField.trim());
+        if (currentRow.some(f => f)) rows.push(currentRow);
+        currentRow = [];
+        currentField = '';
+      } else {
+        currentField += char;
+      }
+    }
+  }
+  currentRow.push(currentField.trim());
+  if (currentRow.some(f => f)) rows.push(currentRow);
+  return rows;
+};
+
+// Format guests for clipboard (tab-separated for spreadsheet paste)
+const formatGuestListForClipboard = (guests: Guest[], groups: GuestGroup[], enabledEvents: WeddingEventConfig[]): string => {
+  const headers = ['Name', 'Group', 'Side', 'Gender', 'Type', 'Role', 'RSVP', 'Events', 'Table', 'Phone'];
+  const rows = guests.map(g => {
+    const group = groups.find(gr => gr.id === g.groupId);
+    const side = g.side === 'groom' ? "Groom's" : g.side === 'bride' ? "Bride's" : 'Joint';
+    const events = enabledEvents.filter(e => g.invitedTo.includes(e.id)).map(e => e.name).join(', ');
+    return [
+      g.name,
+      group?.name || '',
+      side,
+      g.gender === 'male' ? 'Male' : 'Female',
+      g.type === 'adult' ? 'Adult' : 'Child',
+      g.role.charAt(0).toUpperCase() + g.role.slice(1),
+      g.rsvpStatus.charAt(0).toUpperCase() + g.rsvpStatus.slice(1),
+      events,
+      g.tableNumber || group?.tableNumber || '',
+      g.phone || '',
+    ];
+  });
+  return [headers.join('\t'), ...rows.map(r => r.join('\t'))].join('\n');
+};
+
+// CSV export with proper field escaping
+const exportGuestsAsCSV = (guests: Guest[], groups: GuestGroup[], enabledEvents: WeddingEventConfig[]): string => {
+  const escapeField = (f: string) => {
+    if (f.includes(',') || f.includes('"') || f.includes('\n')) {
+      return `"${f.replace(/"/g, '""')}"`;
+    }
+    return f;
+  };
+  const headers = ['Name', 'Group/Family', 'Side', 'Gender', 'Type', 'Role', 'RSVP', 'Events', 'Table', 'Phone', 'Email', 'Notes'];
+  const rows = guests.map(g => {
+    const group = groups.find(gr => gr.id === g.groupId);
+    const events = enabledEvents.filter(e => g.invitedTo.includes(e.id)).map(e => e.name).join('; ');
+    return [
+      g.name, group?.name || '', g.side, g.gender, g.type, g.role,
+      g.rsvpStatus, events, g.tableNumber || group?.tableNumber || '',
+      g.phone || '', g.email || '', g.notes || '',
+    ].map(escapeField);
+  });
+  return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+};
+
+// ============================================================
+// ADDITIONAL ICONS
+// ============================================================
+
+// SettingsIcon imported from Icons.tsx
+
+const DownloadIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+  </svg>
+);
+
+const UploadIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>
+  </svg>
+);
+
+const ClipboardIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+  </svg>
+);
+
+const FileTextIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/>
+  </svg>
+);
+
+const MoveIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m18 8 4 4-4 4"/><path d="M2 12h20"/><path d="m6 8-4 4 4 4"/>
+  </svg>
+);
+
+const MoreVertical = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>
+  </svg>
+);
+
+// Initials avatar colors - deterministic based on name
+const AVATAR_COLORS = [
+  { bg: 'bg-teal-700', text: 'text-teal-100' },
+  { bg: 'bg-blue-700', text: 'text-blue-100' },
+  { bg: 'bg-violet-700', text: 'text-violet-100' },
+  { bg: 'bg-rose-700', text: 'text-rose-100' },
+  { bg: 'bg-amber-700', text: 'text-amber-100' },
+  { bg: 'bg-emerald-700', text: 'text-emerald-100' },
+  { bg: 'bg-cyan-700', text: 'text-cyan-100' },
+  { bg: 'bg-pink-700', text: 'text-pink-100' },
+  { bg: 'bg-indigo-700', text: 'text-indigo-100' },
+  { bg: 'bg-slate-600', text: 'text-slate-100' },
+];
+
+const getInitials = (name: string): string => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const getAvatarColor = (name: string) => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+};
+
+// ============================================================
+// DATA MIGRATION
+// ============================================================
+
+const migrateData = (stored: Partial<GuestManagerData>): GuestManagerData => {
+  const defaults = getDefaultGuestManagerData();
+  
+  // Merge events: keep existing states, add new presets that don't exist
+  const existingEventIds = new Set((stored.events || []).map(e => e.id));
+  const allPresetEventsList = ALL_EVENT_PRESETS.flatMap(cat => cat.events);
+  const newPresets = allPresetEventsList
+    .filter(pe => !existingEventIds.has(pe.id))
+    .map(pe => ({ ...pe, enabled: false }));
+  
+  const migratedEvents = [
+    ...(stored.events || defaults.events),
+    ...newPresets,
+  ];
+
+  return {
+    guests: (stored.guests || []).map(g => ({
+      ...g,
+      role: g.role || 'guest',
+      rsvpStatus: (g as any).rsvpStatus || 'pending',
+      groupId: g.groupId || undefined,
+      tableNumber: g.tableNumber || undefined,
+    })),
+    groups: (stored.groups || []).map(g => ({
+      ...g,
+      tableNumber: g.tableNumber || undefined,
+    })),
+    events: migratedEvents,
+    segregationMode: stored.segregationMode ?? false,
+  };
+};
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
+
+export const GuestManager: React.FC = () => {
+  // Persisted data with migration
+  const [rawData, setRawData] = useLocalStorage<GuestManagerData>(
+    'guest-manager-data',
+    getDefaultGuestManagerData()
+  );
+  const data = useMemo(() => migrateData(rawData), [rawData]);
+  const setData = (updater: (prev: GuestManagerData) => GuestManagerData) => {
+    setRawData(prev => updater(migrateData(prev)));
+  };
+
+  // UI State
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [segregationTab, setSegregationTab] = useState<'all' | 'men' | 'women'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'rsvp' | 'side' | 'none'>('none');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [selectedGuests, setSelectedGuests] = useState<Set<string>>(new Set());
+  const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editGroupName, setEditGroupName] = useState('');
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [addMode, setAddMode] = useState<'individual' | 'family'>('individual');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'group' | 'guest'; id: string; name: string; memberCount?: number } | null>(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [moveMenuGuestId, setMoveMenuGuestId] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  useScrollLock(!!deleteConfirm || showImportModal || showBulkDeleteConfirm);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<{ guests: Partial<Guest>[]; groups: string[]; duplicates: string[] } | null>(null);
+  // Custom event name/icon state now managed inside EventSettingsModal
+  const [clipboardCopied, setClipboardCopied] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; title: string; description?: string } | null>(null);
+  const [addIndividualEventsExpanded, setAddIndividualEventsExpanded] = useState(false);
+  const [addGroupEventsExpanded, setAddGroupEventsExpanded] = useState(false);
+
+  const moveMenuRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const membersListRef = useRef<HTMLDivElement>(null);
+
+  // Individual guest form
+  const [individualForm, setIndividualForm] = useState({
+    name: '',
+    side: 'groom' as GuestSide,
+    gender: 'male' as GuestGender,
+    type: 'adult' as GuestType,
+    role: 'guest' as GuestRole,
+    invitedTo: [] as string[],
+    tableNumber: '',
+  });
+
+  // Family form
+  const [familyForm, setFamilyForm] = useState({
+    familyName: '',
+    side: 'groom' as GuestSide,
+    invitedTo: [] as string[],
+    tableNumber: '',
+    members: [
+      { name: '', gender: 'male' as GuestGender, type: 'adult' as GuestType, role: 'vip' as GuestRole },
+      { name: '', gender: 'female' as GuestGender, type: 'adult' as GuestType, role: 'vip' as GuestRole },
+    ],
+  });
+
+  // ============================================================
+  // MEMOS
+  // ============================================================
+
+  const enabledEvents = useMemo(() => data.events.filter(e => e.enabled), [data.events]);
+
+  // Filtered guests: by event + optionally by gender (segregation)
+  const filteredGuests = useMemo(() => {
+    let guests = activeFilter === 'all' ? data.guests : data.guests.filter(g => g.invitedTo.includes(activeFilter));
+    if (data.segregationMode && segregationTab === 'men') {
+      guests = guests.filter(g => g.gender === 'male');
+    } else if (data.segregationMode && segregationTab === 'women') {
+      guests = guests.filter(g => g.gender === 'female');
+    }
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      guests = guests.filter(g => {
+        const group = data.groups.find(gr => gr.id === g.groupId);
+        return g.name.toLowerCase().includes(q)
+          || (group?.name.toLowerCase().includes(q))
+          || (g.phone?.toLowerCase().includes(q))
+          || (g.notes?.toLowerCase().includes(q));
+      });
+    }
+    // Sort
+    if (sortBy !== 'none') {
+      guests = [...guests].sort((a, b) => {
+        let cmp = 0;
+        if (sortBy === 'name') cmp = a.name.localeCompare(b.name);
+        else if (sortBy === 'rsvp') {
+          const order = { confirmed: 0, pending: 1, declined: 2 };
+          cmp = (order[a.rsvpStatus] ?? 1) - (order[b.rsvpStatus] ?? 1);
+        }
+        else if (sortBy === 'side') cmp = a.side.localeCompare(b.side);
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
+    return guests;
+  }, [data.guests, data.groups, data.segregationMode, activeFilter, segregationTab, searchQuery, sortBy, sortDir]);
+
+  // Organized guests (grouped + ungrouped)
+  const organizedGuests = useMemo(() => {
+    const grouped: { group: GuestGroup; members: Guest[] }[] = [];
+    const ungrouped: Guest[] = [];
+
+    data.groups.forEach(group => {
+      const members = filteredGuests.filter(g => g.groupId === group.id);
+      if (members.length > 0) grouped.push({ group, members });
+    });
+
+    filteredGuests.forEach(guest => {
+      if (!guest.groupId) ungrouped.push(guest);
+    });
+
+    return { grouped, ungrouped };
+  }, [data.groups, filteredGuests]);
+
+  // Stats
+  const stats = useMemo(() => {
+    const eventGuests = activeFilter === 'all'
+      ? data.guests
+      : data.guests.filter(g => g.invitedTo.includes(activeFilter));
+    
+    return {
+      total: eventGuests.length,
+      adults: eventGuests.filter(g => g.type === 'adult').length,
+      children: eventGuests.filter(g => g.type === 'child').length,
+      groomSide: eventGuests.filter(g => g.side === 'groom').length,
+      brideSide: eventGuests.filter(g => g.side === 'bride').length,
+      jointSide: eventGuests.filter(g => g.side === 'joint').length,
+      males: eventGuests.filter(g => g.gender === 'male').length,
+      females: eventGuests.filter(g => g.gender === 'female').length,
+      families: data.groups.length,
+      confirmed: eventGuests.filter(g => g.rsvpStatus === 'confirmed').length,
+      declined: eventGuests.filter(g => g.rsvpStatus === 'declined').length,
+      pending: eventGuests.filter(g => g.rsvpStatus === 'pending').length,
+    };
+  }, [data.guests, data.groups, activeFilter]);
+
+  // ============================================================
+  // EFFECTS
+  // ============================================================
+
+  // Context-aware defaults based on active filter
+  useEffect(() => {
+    const events = activeFilter === 'all' ? enabledEvents.map(e => e.id) : [activeFilter];
+    setIndividualForm(prev => ({ ...prev, invitedTo: events }));
+    setFamilyForm(prev => ({ ...prev, invitedTo: events }));
+  }, [activeFilter, enabledEvents]);
+
+  // Close menus on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (moveMenuRef.current && !moveMenuRef.current.contains(e.target as Node)) setMoveMenuGuestId(null);
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setShowExportMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Reset segregation tab when mode is turned off
+  useEffect(() => {
+    if (!data.segregationMode) setSegregationTab('all');
+  }, [data.segregationMode]);
+
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  // ============================================================
+  // HANDLERS
+  // ============================================================
+
+  const toggleGroupExpanded = (groupId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      next.has(groupId) ? next.delete(groupId) : next.add(groupId);
+      return next;
+    });
+  };
+
+  // Add individual guest
+  const handleAddIndividual = () => {
+    if (!individualForm.name.trim() || individualForm.invitedTo.length === 0) return;
+    const newGuest = createGuest(
+      individualForm.name.trim(), individualForm.side, individualForm.gender,
+      individualForm.type, individualForm.role, individualForm.invitedTo
+    );
+    if (individualForm.tableNumber.trim()) newGuest.tableNumber = individualForm.tableNumber.trim();
+    setData(prev => ({ ...prev, guests: [...prev.guests, newGuest] }));
+    setToast({ type: 'success', title: 'Guest created', description: `${newGuest.name} has been added to the guest list` });
+    setIndividualForm(prev => ({ ...prev, name: '', tableNumber: '' }));
+  };
+
+  // Add family group
+  const handleAddFamily = () => {
+    const validMembers = familyForm.members.filter(m => m.name.trim());
+    if (validMembers.length === 0 || familyForm.invitedTo.length === 0) return;
+
+    const groupId = generateId();
+    const familyName = familyForm.familyName.trim() ||
+      `The ${validMembers[0].name.split(' ').pop() || 'Guest'} Group`;
+
+    const newGroup: GuestGroup = { id: groupId, name: autoCapitalize(familyName), memberIds: [], createdAt: new Date().toISOString() };
+    if (familyForm.tableNumber.trim()) newGroup.tableNumber = familyForm.tableNumber.trim();
+    const newGuests: Guest[] = validMembers.map(member =>
+      createGuest(member.name.trim(), familyForm.side, member.gender, member.type, member.role, familyForm.invitedTo, groupId)
+    );
+    newGroup.memberIds = newGuests.map(g => g.id);
+
+    setExpandedGroups(prev => new Set([...prev, groupId]));
+    setData(prev => ({ ...prev, guests: [...prev.guests, ...newGuests], groups: [...prev.groups, newGroup] }));
+    setToast({ type: 'success', title: 'Group created', description: `${newGroup.name} added with ${newGuests.length} member${newGuests.length !== 1 ? 's' : ''}` });
+    setFamilyForm({
+      familyName: '', side: 'groom', invitedTo: enabledEvents.map(e => e.id), tableNumber: '',
+      members: [
+        { name: '', gender: 'male', type: 'adult', role: 'vip' },
+        { name: '', gender: 'female', type: 'adult', role: 'vip' },
+      ],
+    });
+  };
+
+  const addFamilyMember = () => {
+    setFamilyForm(prev => ({
+      ...prev, members: [...prev.members, { name: '', gender: 'male', type: 'child', role: 'guest' }]
+    }));
+    // Smooth scroll to bottom, only focus on desktop (mobile keyboard covers the field)
+    setTimeout(() => {
+      if (membersListRef.current) {
+        membersListRef.current.scrollTo({ top: membersListRef.current.scrollHeight, behavior: 'smooth' });
+        const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+        if (isDesktop) {
+          const inputs = membersListRef.current.querySelectorAll<HTMLInputElement>('input[type="text"]');
+          const lastInput = inputs[inputs.length - 1];
+          if (lastInput) lastInput.focus({ preventScroll: true });
+        }
+      }
+    }, 50);
+  };
+
+  const removeFamilyMember = (index: number) => {
+    if (familyForm.members.length <= 1) return;
+    setFamilyForm(prev => ({ ...prev, members: prev.members.filter((_, i) => i !== index) }));
+  };
+
+  const updateFamilyMember = (index: number, field: string, value: string) => {
+    setFamilyForm(prev => ({
+      ...prev, members: prev.members.map((m, i) => i === index ? { ...m, [field]: value } : m)
+    }));
+  };
+
+  // Delete guest
+  const handleDeleteGuest = (id: string) => {
+    const guest = data.guests.find(g => g.id === id);
+    setData(prev => {
+      let newGroups = prev.groups;
+      if (guest?.groupId) {
+        newGroups = prev.groups.map(g =>
+          g.id === guest.groupId ? { ...g, memberIds: g.memberIds.filter(mid => mid !== id) } : g
+        ).filter(g => g.memberIds.length > 0);
+      }
+      return { ...prev, guests: prev.guests.filter(g => g.id !== id), groups: newGroups };
+    });
+  };
+
+  // Delete group
+  const handleDeleteGroup = (groupId: string) => {
+    setData(prev => ({
+      ...prev,
+      guests: prev.guests.filter(g => g.groupId !== groupId),
+      groups: prev.groups.filter(g => g.id !== groupId)
+    }));
+  };
+
+  // Edit group name
+  const startEditingGroup = (groupId: string, currentName: string) => {
+    setEditingGroupId(groupId);
+    setEditGroupName(currentName);
+  };
+
+  const saveGroupName = () => {
+    if (!editingGroupId || !editGroupName.trim()) { setEditingGroupId(null); return; }
+    setData(prev => ({
+      ...prev, groups: prev.groups.map(g => g.id === editingGroupId ? { ...g, name: autoCapitalize(editGroupName.trim()) } : g)
+    }));
+    setEditingGroupId(null);
+  };
+
+  // Add member to existing family
+  const handleAddMemberToFamily = (groupId: string) => {
+    const existingEmptyMember = data.guests.find(g => g.groupId === groupId && g.name.trim() === '');
+    if (existingEmptyMember) {
+      setExpandedGroups(prev => new Set([...prev, groupId]));
+      setEditingGuest(existingEmptyMember);
+      return;
+    }
+    const firstMember = data.guests.find(g => g.groupId === groupId);
+    const newGuest = createGuest(
+      '', firstMember?.side || 'groom', 'male', 'adult',
+      firstMember?.role || 'vip', firstMember?.invitedTo || enabledEvents.map(e => e.id), groupId
+    );
+    setExpandedGroups(prev => new Set([...prev, groupId]));
+    setData(prev => ({
+      ...prev,
+      guests: [...prev.guests, newGuest],
+      groups: prev.groups.map(g => g.id === groupId ? { ...g, memberIds: [...g.memberIds, newGuest.id] } : g)
+    }));
+    setEditingGuest(newGuest);
+  };
+
+  // Update guest
+  const handleUpdateGuest = (updatedGuest: Guest) => {
+    if (!updatedGuest.name.trim()) return;
+    const capitalized = { ...updatedGuest, name: autoCapitalize(updatedGuest.name.trim()) };
+    setData(prev => ({ ...prev, guests: prev.guests.map(g => g.id === capitalized.id ? capitalized : g) }));
+    setEditingGuest(null);
+  };
+
+  // Cancel editing
+  const handleCancelEdit = (guestId: string) => {
+    const guest = data.guests.find(g => g.id === guestId);
+    if (guest && !guest.name.trim()) {
+      setData(prev => {
+        let newGroups = prev.groups;
+        if (guest.groupId) {
+          newGroups = prev.groups.map(g =>
+            g.id === guest.groupId ? { ...g, memberIds: g.memberIds.filter(mid => mid !== guestId) } : g
+          ).filter(g => g.memberIds.length > 0);
+        }
+        return { ...prev, guests: prev.guests.filter(g => g.id !== guestId), groups: newGroups };
+      });
+    }
+    setEditingGuest(null);
+  };
+
+  // Cycle RSVP status
+  const handleCycleRsvp = useCallback((guestId: string) => {
+    setData(prev => ({
+      ...prev,
+      guests: prev.guests.map(g => {
+        if (g.id !== guestId) return g;
+        const next: RsvpStatus = g.rsvpStatus === 'pending' ? 'confirmed' : g.rsvpStatus === 'confirmed' ? 'declined' : 'pending';
+        return { ...g, rsvpStatus: next };
+      })
+    }));
+  }, []);
+
+  // Move guest between groups
+  const handleMoveGuest = useCallback((guestId: string, targetGroupId: string | null) => {
+    setData(prev => {
+      const guest = prev.guests.find(g => g.id === guestId);
+      if (!guest) return prev;
+
+      let newGroups = prev.groups.map(g => ({
+        ...g, memberIds: g.memberIds.filter(mid => mid !== guestId)
+      }));
+
+      if (targetGroupId) {
+        newGroups = newGroups.map(g =>
+          g.id === targetGroupId ? { ...g, memberIds: [...g.memberIds, guestId] } : g
+        );
+      }
+
+      // Clean up empty groups
+      newGroups = newGroups.filter(g => g.memberIds.length > 0);
+
+      const newGuests = prev.guests.map(g =>
+        g.id === guestId ? { ...g, groupId: targetGroupId || undefined } : g
+      );
+
+      return { ...prev, guests: newGuests, groups: newGroups };
+    });
+    setMoveMenuGuestId(null);
+    setToast({ type: 'success', title: targetGroupId ? 'Guest moved' : 'Guest ungrouped', description: targetGroupId ? 'Guest has been moved to the group' : 'Guest is now ungrouped' });
+  }, []);
+
+  // Toggle event enabled
+  const toggleEventEnabled = (eventId: string) => {
+    setData(prev => ({
+      ...prev, events: prev.events.map(e => e.id === eventId ? { ...e, enabled: !e.enabled } : e)
+    }));
+  };
+
+  // Toggle segregation mode
+  const toggleSegregationMode = () => {
+    setData(prev => ({ ...prev, segregationMode: !prev.segregationMode }));
+  };
+
+  // Toggle event in individual form
+  const toggleIndividualEvent = (eventId: string) => {
+    setIndividualForm(prev => ({
+      ...prev,
+      invitedTo: prev.invitedTo.includes(eventId)
+        ? prev.invitedTo.filter(e => e !== eventId)
+        : [...prev.invitedTo, eventId]
+    }));
+  };
+
+  // Toggle event in family form
+  const toggleFamilyEvent = (eventId: string) => {
+    setFamilyForm(prev => ({
+      ...prev,
+      invitedTo: prev.invitedTo.includes(eventId)
+        ? prev.invitedTo.filter(e => e !== eventId)
+        : [...prev.invitedTo, eventId]
+    }));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); if (addMode === 'individual') handleAddIndividual(); }
+  };
+
+  // Custom events
+  const handleAddCustomEvent = (name: string, icon: string) => {
+    if (!name.trim()) return;
+    const id = `custom-${generateId()}`;
+    const newEvent: WeddingEventConfig = { id, name: name.trim(), icon, enabled: true, isCustom: true };
+    setData(prev => ({ ...prev, events: [...prev.events, newEvent] }));
+  };
+
+  const handleDeleteCustomEvent = (eventId: string) => {
+    setData(prev => ({
+      ...prev,
+      events: prev.events.filter(e => e.id !== eventId),
+      guests: prev.guests.map(g => ({ ...g, invitedTo: g.invitedTo.filter(e => e !== eventId) }))
+    }));
+  };
+
+  // Table number for group
+  const handleGroupTableNumber = (groupId: string, tableNumber: string) => {
+    setData(prev => ({
+      ...prev, groups: prev.groups.map(g => g.id === groupId ? { ...g, tableNumber } : g)
+    }));
+  };
+
+  // CSV Import
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportError(null);
+    setImportPreview(null);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const text = evt.target?.result as string;
+        const rows = parseCSV(text);
+        if (rows.length < 2) { setImportError('CSV file appears to be empty or has no data rows.'); return; }
+
+        const headers = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
+        const nameIdx = headers.findIndex(h => h.includes('name'));
+        const groupIdx = headers.findIndex(h => h.includes('group') || h.includes('family'));
+        const sideIdx = headers.findIndex(h => h.includes('side'));
+        const genderIdx = headers.findIndex(h => h.includes('gender'));
+        const typeIdx = headers.findIndex(h => h.includes('type'));
+        const roleIdx = headers.findIndex(h => h.includes('role'));
+        const phoneIdx = headers.findIndex(h => h.includes('phone'));
+
+        if (nameIdx === -1) { setImportError('CSV must have a "Name" column.'); return; }
+
+        const previewGuests: Partial<Guest>[] = [];
+        const groupNames = new Set<string>();
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          const name = row[nameIdx]?.trim();
+          if (!name) continue;
+
+          const groupName = groupIdx >= 0 ? row[groupIdx]?.trim() : '';
+          if (groupName) groupNames.add(groupName);
+
+          const side = sideIdx >= 0 ? (row[sideIdx]?.trim().toLowerCase() as GuestSide) : 'groom';
+          const gender = genderIdx >= 0 ? (row[genderIdx]?.trim().toLowerCase() as GuestGender) : 'male';
+          const gType = typeIdx >= 0 ? (row[typeIdx]?.trim().toLowerCase() as GuestType) : 'adult';
+          const role = roleIdx >= 0 ? (row[roleIdx]?.trim().toLowerCase() as GuestRole) : 'guest';
+          const phone = phoneIdx >= 0 ? row[phoneIdx]?.trim() : undefined;
+
+          previewGuests.push({ name, side: ['groom', 'bride', 'joint'].includes(side) ? side : 'groom', gender: ['male', 'female'].includes(gender) ? gender : 'male', type: ['adult', 'child'].includes(gType) ? gType : 'adult', role, phone, groupId: groupName || undefined });
+        }
+
+        // Detect duplicates (match by name, case-insensitive)
+        const existingNames = new Set(data.guests.map(g => g.name.toLowerCase().trim()));
+        const duplicateNames = previewGuests
+          .filter(g => g.name && existingNames.has(g.name.toLowerCase().trim()))
+          .map(g => g.name!);
+
+        setImportPreview({ guests: previewGuests, groups: Array.from(groupNames), duplicates: duplicateNames });
+      } catch {
+        setImportError('Failed to parse CSV file. Please check the format.');
+      }
+    };
+    reader.readAsText(file);
+    if (e.target) e.target.value = '';
+  };
+
+  const handleConfirmImport = () => {
+    if (!importPreview) return;
+
+    const groupMap = new Map<string, string>(); // groupName -> groupId
+    const newGroups: GuestGroup[] = [];
+    const newGuests: Guest[] = [];
+
+    importPreview.groups.forEach(name => {
+      const id = generateId();
+      groupMap.set(name, id);
+      newGroups.push({ id, name, memberIds: [], createdAt: new Date().toISOString() });
+    });
+
+    importPreview.guests.forEach(pg => {
+      const groupName = pg.groupId as string | undefined;
+      const groupId = groupName ? groupMap.get(groupName) : undefined;
+      const guest = createGuest(
+        pg.name!, pg.side || 'groom', pg.gender || 'male', pg.type || 'adult',
+        pg.role || 'guest', enabledEvents.map(e => e.id), groupId
+      );
+      if (pg.phone) guest.phone = pg.phone;
+      newGuests.push(guest);
+      if (groupId) {
+        const group = newGroups.find(g => g.id === groupId);
+        if (group) group.memberIds.push(guest.id);
+      }
+    });
+
+    setData(prev => ({
+      ...prev,
+      guests: [...prev.guests, ...newGuests],
+      groups: [...prev.groups, ...newGroups],
+    }));
+
+    setShowImportModal(false);
+    setImportPreview(null);
+    setImportError(null);
+    setToast({ type: 'success', title: 'Import complete', description: `${newGuests.length} guest${newGuests.length !== 1 ? 's' : ''} imported${newGroups.length > 0 ? ` in ${newGroups.length} group${newGroups.length !== 1 ? 's' : ''}` : ''}` });
+  };
+
+  // CSV Template Download
+  const handleDownloadTemplate = () => {
+    const csv = generateCSVTemplate();
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'guest-list-template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // PDF Export (professional styled)
+  const handleExportPDF = async (mode: 'all' | 'men' | 'women' | 'tables') => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 14;
+      const contentWidth = pageWidth - margin * 2;
+      const title = mode === 'men' ? 'Guest List — Male' : mode === 'women' ? 'Guest List — Female' : mode === 'tables' ? 'Guest List — By Table' : 'Guest List';
+
+      let filteredGuests = [...data.guests];
+      if (mode === 'men') filteredGuests = filteredGuests.filter(g => g.gender === 'male');
+      if (mode === 'women') filteredGuests = filteredGuests.filter(g => g.gender === 'female');
+
+      // Header banner
+      doc.setFillColor(16, 40, 36);
+      doc.rect(0, 0, pageWidth, 36, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text(title, margin, 15);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, margin, 23);
+
+      // Summary stats
+      const confirmed = filteredGuests.filter(g => g.rsvpStatus === 'confirmed').length;
+      const pending = filteredGuests.filter(g => g.rsvpStatus === 'pending').length;
+      const declined = filteredGuests.filter(g => g.rsvpStatus === 'declined').length;
+      doc.text(`Total: ${filteredGuests.length}  |  Confirmed: ${confirmed}  |  Pending: ${pending}  |  Declined: ${declined}`, margin, 30);
+
+      let y = 42;
+
+      const tableHeadStyles = {
+        fillColor: [30, 60, 55] as [number, number, number],
+        textColor: [255, 255, 255] as [number, number, number],
+        fontSize: 7.5,
+        fontStyle: 'bold' as const,
+        cellPadding: 2,
+      };
+      const tableBodyStyles = {
+        fontSize: 7.5,
+        cellPadding: 1.8,
+        textColor: [40, 40, 40] as [number, number, number],
+      };
+
+      if (mode === 'tables') {
+        const byTable = new Map<string, Guest[]>();
+        filteredGuests.forEach(g => {
+          const table = g.tableNumber || data.groups.find(gr => gr.id === g.groupId)?.tableNumber || 'Unassigned';
+          if (!byTable.has(table)) byTable.set(table, []);
+          byTable.get(table)!.push(g);
+        });
+
+        byTable.forEach((tableGuests, tableName) => {
+          if (y > pageHeight - 30) { doc.addPage(); y = margin; }
+
+          doc.setFillColor(16, 40, 36);
+          doc.roundedRect(margin, y, contentWidth, 7, 1.5, 1.5, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`Table: ${tableName}  (${tableGuests.length} guests)`, margin + 3, y + 4.8);
+          y += 9;
+
+          autoTable(doc, {
+            startY: y,
+            margin: { left: margin, right: margin },
+            head: [['#', 'Name', 'Group', 'Side', 'Gender', 'RSVP']],
+            body: tableGuests.map((g, i) => {
+              const group = data.groups.find(gr => gr.id === g.groupId);
+              return [
+                i + 1, g.name, group?.name || '-',
+                g.side === 'groom' ? "Groom's" : g.side === 'bride' ? "Bride's" : 'Joint',
+                g.gender === 'male' ? 'Male' : 'Female',
+                g.rsvpStatus.charAt(0).toUpperCase() + g.rsvpStatus.slice(1),
+              ];
+            }),
+            theme: 'grid',
+            headStyles: tableHeadStyles,
+            bodyStyles: tableBodyStyles,
+            alternateRowStyles: { fillColor: [245, 248, 250] },
+            didParseCell: (cellData) => {
+              if (cellData.column.index === 5 && cellData.section === 'body') {
+                const val = String(cellData.cell.raw).toLowerCase();
+                if (val === 'confirmed') { cellData.cell.styles.textColor = [16, 120, 80]; cellData.cell.styles.fontStyle = 'bold'; }
+                else if (val === 'declined') { cellData.cell.styles.textColor = [180, 40, 40]; }
+                else if (val === 'pending') { cellData.cell.styles.textColor = [160, 130, 0]; }
+              }
+            },
+          });
+          y = (doc as any).lastAutoTable.finalY + 6;
+        });
+      } else {
+        autoTable(doc, {
+          startY: y,
+          margin: { left: margin, right: margin },
+          head: [['#', 'Name', 'Group', 'Side', 'Table', 'RSVP', 'Role', 'Phone']],
+          body: filteredGuests.map((g, i) => {
+            const group = data.groups.find(gr => gr.id === g.groupId);
+            return [
+              i + 1, g.name, group?.name || '-',
+              g.side === 'groom' ? "Groom's" : g.side === 'bride' ? "Bride's" : 'Joint',
+              g.tableNumber || group?.tableNumber || '-',
+              g.rsvpStatus.charAt(0).toUpperCase() + g.rsvpStatus.slice(1),
+              GUEST_ROLES.find(r => r.value === g.role)?.label || 'Guest',
+              g.phone || '-',
+            ];
+          }),
+          theme: 'grid',
+          headStyles: tableHeadStyles,
+          bodyStyles: tableBodyStyles,
+          alternateRowStyles: { fillColor: [245, 248, 250] },
+          columnStyles: {
+            0: { cellWidth: 8, halign: 'center' },
+            7: { cellWidth: 28 },
+          },
+          didParseCell: (cellData) => {
+            if (cellData.column.index === 5 && cellData.section === 'body') {
+              const val = String(cellData.cell.raw).toLowerCase();
+              if (val === 'confirmed') { cellData.cell.styles.textColor = [16, 120, 80]; cellData.cell.styles.fontStyle = 'bold'; }
+              else if (val === 'declined') { cellData.cell.styles.textColor = [180, 40, 40]; }
+              else if (val === 'pending') { cellData.cell.styles.textColor = [160, 130, 0]; }
+            }
+          },
+        });
+      }
+
+      // Footer on all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFillColor(245, 245, 245);
+        doc.rect(0, pageHeight - 10, pageWidth, 10, 'F');
+        doc.setTextColor(140, 140, 140);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Nikkah & Walima Planning Pro', margin, pageHeight - 4);
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 4, { align: 'right' });
+      }
+
+      doc.save(`guest-list${mode !== 'all' ? `-${mode}` : ''}-${new Date().toISOString().slice(0, 10)}.pdf`);
+      setShowExportMenu(false);
+      setToast({ type: 'success', title: 'PDF exported', description: 'Guest list has been saved as PDF' });
+    } catch (err) {
+      console.error('PDF export error:', err);
+      setToast({ type: 'error', title: 'Export failed', description: 'Could not generate the PDF file' });
+    }
+  };
+
+  // CSV Export
+  const handleExportCSV = () => {
+    const csv = exportGuestsAsCSV(data.guests, data.groups, enabledEvents);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `guest-list-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowExportMenu(false);
+    setToast({ type: 'success', title: 'CSV exported', description: 'Guest list has been saved as CSV' });
+  };
+
+  // Clipboard copy
+  const handleCopyToClipboard = async () => {
+    const text = formatGuestListForClipboard(data.guests, data.groups, enabledEvents);
+    try {
+      await navigator.clipboard.writeText(text);
+      setClipboardCopied(true);
+      setToast({ type: 'success', title: 'Copied to clipboard', description: 'Guest list is ready to paste' });
+      setTimeout(() => setClipboardCopied(false), 2000);
+    } catch {
+      setToast({ type: 'error', title: 'Copy failed', description: 'Could not access the clipboard' });
+    }
+  };
+
+  // Bulk actions
+  const toggleGuestSelection = (guestId: string) => {
+    setSelectedGuests(prev => {
+      const next = new Set(prev);
+      if (next.has(guestId)) next.delete(guestId);
+      else next.add(guestId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedGuests.size === filteredGuests.length) {
+      setSelectedGuests(new Set());
+    } else {
+      setSelectedGuests(new Set(filteredGuests.map(g => g.id)));
+    }
+  };
+
+  const handleBulkRsvp = (status: RsvpStatus) => {
+    setData(prev => ({
+      ...prev,
+      guests: prev.guests.map(g => selectedGuests.has(g.id) ? { ...g, rsvpStatus: status } : g),
+    }));
+    setToast({ type: 'success', title: `${selectedGuests.size} guests updated`, description: `RSVP set to ${status}` });
+    setSelectedGuests(new Set());
+  };
+
+  const handleBulkDelete = () => {
+    const ids = selectedGuests;
+    setData(prev => ({
+      ...prev,
+      guests: prev.guests.filter(g => !ids.has(g.id)),
+      groups: prev.groups.map(group => ({
+        ...group,
+        memberIds: group.memberIds.filter(id => !ids.has(id))
+      }))
+    }));
+    setToast({ type: 'success', title: `${ids.size} guests deleted` });
+    setSelectedGuests(new Set());
+  };
+
+  const handleBulkTableAssign = (tableNumber: string) => {
+    setData(prev => ({
+      ...prev,
+      guests: prev.guests.map(g => selectedGuests.has(g.id) ? { ...g, tableNumber } : g),
+    }));
+    setToast({ type: 'success', title: `${selectedGuests.size} guests assigned`, description: `Table ${tableNumber}` });
+    setSelectedGuests(new Set());
+  };
+
+  const handleCycleSort = (field: 'name' | 'rsvp' | 'side') => {
+    if (sortBy === field) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortBy('none'); setSortDir('asc'); }
+    } else {
+      setSortBy(field);
+      setSortDir('asc');
+    }
+  };
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-8"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)) {
+          e.preventDefault();
+          (e.target as HTMLElement).blur();
+        }
+      }}
+    >
+      {/* Header */}
+      <div className="text-center mb-6">
+        <h2 className="text-3xl font-serif font-bold text-slate-800 dark:text-white mb-2">
+          Guest Manager
+        </h2>
+        <p className="text-slate-600 dark:text-slate-400 italic">
+          Manage your guest list across multiple events
+        </p>
+      </div>
+
+      {/* Stats Bar */}
+      <div className="bg-white dark:bg-zinc-800 rounded-2xl border border-slate-200 dark:border-zinc-700 mb-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5">
+          <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+            {activeFilter === 'all' ? 'All Guests' : enabledEvents.find(e => e.id === activeFilter)?.name + ' Guests'}
+          </h3>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Segregation</span>
+            <div className={`relative w-9 h-5 rounded-full transition-colors ${
+              data.segregationMode ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
+            }`}>
+              <input type="checkbox" checked={data.segregationMode} onChange={toggleSegregationMode} className="sr-only" />
+              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                data.segregationMode ? 'translate-x-4' : 'translate-x-0.5'
+              }`} />
+            </div>
+          </label>
+        </div>
+        {/* Divider */}
+        <div className="border-t border-slate-200 dark:border-zinc-700" />
+        {/* Stats Content */}
+        <div className="px-3 sm:px-4 py-3">
+          {/* Row 1: Total + Adults/Kids */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-3">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-slate-800 dark:text-white">{stats.total}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                {stats.adults}<span className="text-sm text-slate-400">/{stats.children}</span>
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Adults/Kids</p>
+            </div>
+            {/* Desktop only: remaining 3 stats inline */}
+            <div className="text-center hidden sm:block">
+              <div className="flex items-center justify-center gap-0.5">
+                <span className="text-lg font-bold text-teal-600 dark:text-teal-400">{stats.groomSide}</span>
+                <span className="text-slate-300 dark:text-slate-600">/</span>
+                <span className="text-lg font-bold text-rose-600 dark:text-rose-400">{stats.brideSide}</span>
+                {stats.jointSide > 0 && (
+                  <>
+                    <span className="text-slate-300 dark:text-slate-600">/</span>
+                    <span className="text-lg font-bold text-violet-600 dark:text-violet-400">{stats.jointSide}</span>
+                  </>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                {stats.jointSide > 0 ? 'Groom/Bride/Joint' : 'Groom/Bride'}
+              </p>
+            </div>
+            <div className="text-center hidden sm:block">
+              <div className="flex items-center justify-center gap-0.5">
+                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">{stats.males}</span>
+                <span className="text-slate-300 dark:text-slate-600">/</span>
+                <span className="text-lg font-bold text-pink-600 dark:text-pink-400">{stats.females}</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Male/Female</p>
+            </div>
+            <div className="text-center hidden sm:block">
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400" title="Confirmed">{stats.confirmed}<span className="text-[11px] font-medium text-emerald-500/70 ml-0.5">&#10003;</span></span>
+                <span className="text-lg font-bold text-slate-400" title="Pending">{stats.pending}<span className="text-[11px] font-medium text-slate-400/70 ml-0.5">?</span></span>
+                {stats.declined > 0 && (
+                  <span className="text-lg font-bold text-red-500" title="Declined">{stats.declined}<span className="text-[11px] font-medium text-red-400/70 ml-0.5">&#10007;</span></span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">RSVP</p>
+            </div>
+          </div>
+          {/* Row 2 (mobile only): Groom/Bride + Male/Female + RSVP */}
+          <div className="grid grid-cols-3 gap-2 sm:hidden">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-0.5">
+                <span className="text-base font-bold text-teal-600 dark:text-teal-400">{stats.groomSide}</span>
+                <span className="text-slate-300 dark:text-slate-600 text-xs">/</span>
+                <span className="text-base font-bold text-rose-600 dark:text-rose-400">{stats.brideSide}</span>
+                {stats.jointSide > 0 && (
+                  <>
+                    <span className="text-slate-300 dark:text-slate-600 text-xs">/</span>
+                    <span className="text-base font-bold text-violet-600 dark:text-violet-400">{stats.jointSide}</span>
+                  </>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                {stats.jointSide > 0 ? 'Groom/Bride/Joint' : 'Groom/Bride'}
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-0.5">
+                <span className="text-base font-bold text-blue-600 dark:text-blue-400">{stats.males}</span>
+                <span className="text-slate-300 dark:text-slate-600 text-xs">/</span>
+                <span className="text-base font-bold text-pink-600 dark:text-pink-400">{stats.females}</span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Male/Female</p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-base font-bold text-emerald-600 dark:text-emerald-400" title="Confirmed">{stats.confirmed}<span className="text-[9px] font-medium text-emerald-500/70 ml-px">&#10003;</span></span>
+                <span className="text-base font-bold text-slate-400" title="Pending">{stats.pending}<span className="text-[9px] font-medium text-slate-400/70 ml-px">?</span></span>
+                {stats.declined > 0 && (
+                  <span className="text-base font-bold text-red-500" title="Declined">{stats.declined}<span className="text-[9px] font-medium text-red-400/70 ml-px">&#10007;</span></span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">RSVP</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Segregation Tabs */}
+      {data.segregationMode && (
+        <div className="mb-4">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+            Filter by gender
+          </p>
+          <div className="inline-flex rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-700">
+            {([
+              { key: 'all' as const, label: 'All', count: stats.total },
+              { key: 'men' as const, label: 'Male', count: stats.males },
+              { key: 'women' as const, label: 'Female', count: stats.females },
+            ]).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setSegregationTab(tab.key)}
+                className={`px-4 py-2 font-semibold text-xs transition-all ${
+                  segregationTab === tab.key
+                    ? tab.key === 'men' ? 'bg-blue-600 text-white' : tab.key === 'women' ? 'bg-pink-600 text-white' : 'bg-slate-800 dark:bg-white text-white dark:text-slate-800'
+                    : 'bg-white dark:bg-zinc-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                }`}
+              >
+                {tab.label} ({tab.count})
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Filter by Event */}
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+            Filter by event
+          </p>
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+          >
+            <SettingsIcon className="w-3.5 h-3.5" />
+            Manage
+          </button>
+        </div>
+        <div className="relative">
+          <div className="flex gap-2 overflow-x-auto md:overflow-visible md:flex-wrap pb-2 -mx-4 px-4 md:mx-0 md:px-0 pr-8 md:pr-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <button
+              onClick={() => setActiveFilter('all')}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-lg font-semibold text-xs transition-all whitespace-nowrap ${
+                activeFilter === 'all'
+                  ? 'bg-slate-800 dark:bg-white text-white dark:text-slate-800'
+                  : 'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+              }`}
+            >
+              All ({data.guests.length})
+            </button>
+            {enabledEvents.map(event => {
+              const count = data.guests.filter(g => g.invitedTo.includes(event.id)).length;
+              return (
+                <button
+                  key={event.id}
+                  onClick={() => setActiveFilter(event.id)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg font-semibold text-xs transition-all whitespace-nowrap ${
+                    activeFilter === event.id
+                      ? 'bg-slate-800 dark:bg-white text-white dark:text-slate-800'
+                      : 'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                  }`}
+                >
+                  {event.name} ({count})
+                </button>
+              );
+            })}
+          </div>
+          {/* Fade hint — mobile only */}
+          <div className="pointer-events-none absolute -right-4 top-0 bottom-2 w-16 bg-gradient-to-l from-slate-50 dark:from-zinc-950 to-transparent md:hidden" />
+        </div>
+      </div>
+
+      {/* Action Buttons Row - Import/Export/Copy */}
+      <div className="flex items-center justify-end gap-2 mb-3">
+        <button
+          onClick={() => setShowImportModal(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors border border-slate-200 dark:border-zinc-700"
+          title="Import CSV"
+        >
+          <UploadIcon className="w-3.5 h-3.5" />
+          Import
+        </button>
+        <div className="relative" ref={exportMenuRef}>
+          <button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors border border-slate-200 dark:border-zinc-700"
+            title="Export PDF"
+          >
+            <FileTextIcon className="w-3.5 h-3.5" />
+            Export
+            <ChevronDown className="w-3 h-3" />
+          </button>
+          {showExportMenu && (
+            <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-slate-200 dark:border-zinc-700 z-30 py-1">
+              <p className="px-3 py-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">PDF Export</p>
+              {[
+                { key: 'all' as const, label: 'All Guests' },
+                { key: 'men' as const, label: 'Male Only' },
+                { key: 'women' as const, label: 'Female Only' },
+                { key: 'tables' as const, label: 'By Table' },
+              ].map(opt => (
+                <button
+                  key={opt.key}
+                  onClick={() => handleExportPDF(opt.key)}
+                  className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                >
+                  {opt.label}
+                </button>
+              ))}
+              <div className="border-t border-slate-200 dark:border-zinc-700 my-1" />
+              <p className="px-3 py-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Spreadsheet</p>
+              <button
+                onClick={handleExportCSV}
+                className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+              >
+                Export as CSV
+              </button>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={handleCopyToClipboard}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors border border-slate-200 dark:border-zinc-700"
+          title="Copy guest list to clipboard"
+        >
+          <ClipboardIcon className="w-3.5 h-3.5" />
+          {clipboardCopied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+
+      {/* Add Guest Card — collapsible */}
+      {!showAddForm ? (
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 mb-6 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-2xl transition-all shadow-sm active:scale-[0.98]"
+        >
+          <Plus className="w-4 h-4" />
+          Add Guest / Group
+        </button>
+      ) : (
+      <div className="bg-white dark:bg-zinc-800 rounded-2xl border border-slate-200 dark:border-zinc-700 p-3 sm:p-4 mb-6">
+        {/* Mode Toggle + Collapse */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">Add:</span>
+            <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-600">
+              <button
+                onClick={() => setAddMode('individual')}
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-colors ${
+                  addMode === 'individual' ? 'bg-blue-600 text-white' : 'bg-slate-50 dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                👤 Individual
+              </button>
+              <button
+                onClick={() => setAddMode('family')}
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-colors ${
+                  addMode === 'family' ? 'bg-blue-600 text-white' : 'bg-slate-50 dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                👥 Group
+              </button>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowAddForm(false)}
+            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors"
+            title="Collapse form"
+          >
+            <ChevronDown className="w-4 h-4 rotate-180" />
+          </button>
+        </div>
+
+        {/* Individual Form */}
+        {addMode === 'individual' && (
+          <div className="space-y-2">
+            {/* Row 1: Name + Role */}
+            <div className="grid grid-cols-2 gap-x-4">
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Name <span className="text-red-400">*</span></p>
+                <input
+                  type="text"
+                  value={individualForm.name}
+                  onChange={(e) => setIndividualForm(prev => ({ ...prev, name: e.target.value }))}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Guest name..."
+                  className="w-full h-9 px-2.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-blue-400 rounded-lg transition-all outline-none font-medium text-xs text-slate-800 dark:text-white placeholder:text-slate-400"
+                />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Role</p>
+                <CustomSelect
+                  value={individualForm.role}
+                  onChange={(val) => setIndividualForm(prev => ({ ...prev, role: val as GuestRole }))}
+                  options={GUEST_ROLES.map(role => ({ value: role.value, label: `${role.icon} ${role.label}` }))}
+                />
+              </div>
+            </div>
+
+            {/* Row 2: Side + Gender + Type + Table */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2">
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Side</p>
+                <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-600">
+                  {(['groom', 'bride', 'joint'] as const).map(side => (
+                    <button key={side} onClick={() => setIndividualForm(prev => ({ ...prev, side }))}
+                      className={`flex-1 h-9 text-xs font-semibold transition-colors ${
+                        individualForm.side === side
+                          ? side === 'groom' ? 'bg-teal-500 text-white' : side === 'bride' ? 'bg-rose-500 text-white' : 'bg-violet-500 text-white'
+                          : 'bg-slate-50 dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                      }`}>
+                      {side === 'groom' ? 'Groom' : side === 'bride' ? 'Bride' : 'Joint'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Gender</p>
+                <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-600">
+                  {(['male', 'female'] as const).map(gender => (
+                    <button key={gender} onClick={() => setIndividualForm(prev => ({ ...prev, gender }))}
+                      className={`flex-1 h-9 text-xs font-semibold transition-colors ${
+                        individualForm.gender === gender
+                          ? gender === 'male' ? 'bg-blue-500 text-white' : 'bg-pink-500 text-white'
+                          : 'bg-slate-50 dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                      }`}>
+                      {gender === 'male' ? 'Male' : 'Female'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Type</p>
+                <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-600">
+                  {(['adult', 'child'] as const).map(type => (
+                    <button key={type} onClick={() => setIndividualForm(prev => ({ ...prev, type }))}
+                      className={`flex-1 h-9 text-xs font-semibold transition-colors ${
+                        individualForm.type === type
+                          ? type === 'adult' ? 'bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-800' : 'bg-amber-500 text-white'
+                          : 'bg-slate-50 dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                      }`}>
+                      {type === 'adult' ? 'Adult' : 'Child'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Table #</p>
+                <input type="text" inputMode="numeric" pattern="[0-9]*" value={individualForm.tableNumber}
+                  onChange={(e) => setIndividualForm(prev => ({ ...prev, tableNumber: e.target.value.replace(/[^0-9]/g, '') }))}
+                  placeholder="—"
+                  className="w-full h-9 px-2.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 text-center placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            {/* Events - collapsible */}
+            <div>
+              <div className="flex items-center justify-between py-1">
+                <button onClick={() => setAddIndividualEventsExpanded(prev => !prev)}
+                  className="flex items-center gap-1.5 py-1">
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Invite to</p>
+                  <span className="text-xs font-medium text-blue-500 dark:text-blue-400">
+                    {individualForm.invitedTo.length}/{enabledEvents.length} events
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${addIndividualEventsExpanded ? 'rotate-180' : ''}`} />
+                </button>
+                {addIndividualEventsExpanded && (
+                  <button
+                    onClick={() => {
+                      const allSelected = individualForm.invitedTo.length === enabledEvents.length;
+                      setIndividualForm(prev => ({ ...prev, invitedTo: allSelected ? [] : enabledEvents.map(e => e.id) }));
+                    }}
+                    className="text-xs font-medium text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 px-2 py-1"
+                  >
+                    {individualForm.invitedTo.length === enabledEvents.length ? 'Clear all' : 'Select all'}
+                  </button>
+                )}
+              </div>
+              {addIndividualEventsExpanded && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {enabledEvents.map(event => (
+                    <button key={event.id} onClick={() => toggleIndividualEvent(event.id)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        individualForm.invitedTo.includes(event.id)
+                          ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-400'
+                          : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-slate-400 border border-transparent'
+                      }`}>
+                      {event.name}
+                      {individualForm.invitedTo.includes(event.id) && <Check className="w-3 h-3" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleAddIndividual}
+              disabled={!individualForm.name.trim() || individualForm.invitedTo.length === 0}
+              className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:dark:bg-slate-600 text-white font-bold text-sm rounded-xl transition-all disabled:cursor-not-allowed"
+            >
+              <Plus className="w-4 h-4" /> Add Guest
+            </button>
+            <p className="text-center text-[11px] text-slate-400 dark:text-slate-500 mx-3 italic">
+              Phone, notes & RSVP status can be added by editing a guest after creation
+            </p>
+          </div>
+        )}
+
+        {/* Group Form */}
+        {addMode === 'family' && (
+          <div className="space-y-2">
+            {/* Desktop: Group Name (50%) + Side (25%) + Table (25%) */}
+            <div className="hidden sm:grid sm:grid-cols-4 gap-x-3">
+              <div className="col-span-2">
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Group name</p>
+                <input type="text" value={familyForm.familyName}
+                  onChange={(e) => setFamilyForm(prev => ({ ...prev, familyName: e.target.value }))}
+                  placeholder="e.g., The Khan Family, Work Colleagues"
+                  className="w-full h-9 px-2.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-blue-400 rounded-lg transition-all outline-none font-medium text-xs text-slate-800 dark:text-white placeholder:text-slate-400"
+                />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Side</p>
+                <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-600">
+                  {(['groom', 'bride', 'joint'] as const).map(side => (
+                    <button key={side} onClick={() => setFamilyForm(prev => ({ ...prev, side }))}
+                      className={`flex-1 h-9 text-xs font-semibold transition-colors ${
+                        familyForm.side === side
+                          ? side === 'groom' ? 'bg-teal-500 text-white' : side === 'bride' ? 'bg-rose-500 text-white' : 'bg-violet-500 text-white'
+                          : 'bg-slate-50 dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                      }`}>
+                      {side === 'groom' ? 'Groom' : side === 'bride' ? 'Bride' : 'Joint'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Table #</p>
+                <input type="text" inputMode="numeric" pattern="[0-9]*" value={familyForm.tableNumber}
+                  onChange={(e) => setFamilyForm(prev => ({ ...prev, tableNumber: e.target.value.replace(/[^0-9]/g, '') }))}
+                  placeholder="—"
+                  className="w-full h-9 px-2.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 text-center placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+            {/* Mobile layout */}
+            <div className="sm:hidden space-y-2">
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Group name</p>
+                <input type="text" value={familyForm.familyName}
+                  onChange={(e) => setFamilyForm(prev => ({ ...prev, familyName: e.target.value }))}
+                  placeholder="e.g., The Khan Family, Work Colleagues"
+                  className="w-full h-9 px-2.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-blue-400 rounded-lg transition-all outline-none font-medium text-xs text-slate-800 dark:text-white placeholder:text-slate-400"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-x-3">
+                <div>
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Side</p>
+                  <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-600">
+                    {(['groom', 'bride', 'joint'] as const).map(side => (
+                      <button key={side} onClick={() => setFamilyForm(prev => ({ ...prev, side }))}
+                        className={`flex-1 h-9 text-xs font-semibold transition-colors ${
+                          familyForm.side === side
+                            ? side === 'groom' ? 'bg-teal-500 text-white' : side === 'bride' ? 'bg-rose-500 text-white' : 'bg-violet-500 text-white'
+                            : 'bg-slate-50 dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                        }`}>
+                        {side === 'groom' ? 'Groom' : side === 'bride' ? 'Bride' : 'Joint'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Table #</p>
+                  <input type="text" inputMode="numeric" pattern="[0-9]*" value={familyForm.tableNumber}
+                    onChange={(e) => setFamilyForm(prev => ({ ...prev, tableNumber: e.target.value.replace(/[^0-9]/g, '') }))}
+                    placeholder="—"
+                    className="w-full h-9 px-2.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 text-center placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Events - collapsible */}
+            <div>
+              <div className="flex items-center justify-between py-1">
+                <button onClick={() => setAddGroupEventsExpanded(prev => !prev)}
+                  className="flex items-center gap-1.5 py-1">
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Invite to</p>
+                  <span className="text-xs font-medium text-blue-500 dark:text-blue-400">
+                    {familyForm.invitedTo.length}/{enabledEvents.length} events
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${addGroupEventsExpanded ? 'rotate-180' : ''}`} />
+                </button>
+                {addGroupEventsExpanded && (
+                  <button
+                    onClick={() => {
+                      const allSelected = familyForm.invitedTo.length === enabledEvents.length;
+                      setFamilyForm(prev => ({ ...prev, invitedTo: allSelected ? [] : enabledEvents.map(e => e.id) }));
+                    }}
+                    className="text-xs font-medium text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 px-2 py-1"
+                  >
+                    {familyForm.invitedTo.length === enabledEvents.length ? 'Clear all' : 'Select all'}
+                  </button>
+                )}
+              </div>
+              {addGroupEventsExpanded && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {enabledEvents.map(event => (
+                    <button key={event.id} onClick={() => toggleFamilyEvent(event.id)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        familyForm.invitedTo.includes(event.id)
+                          ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-400'
+                          : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-slate-400 border border-transparent'
+                      }`}>
+                      {event.name}
+                      {familyForm.invitedTo.includes(event.id) && <Check className="w-3 h-3" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Members */}
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Members ({familyForm.members.length})</p>
+              <div ref={membersListRef} className={`space-y-1.5 ${familyForm.members.length > 2 ? 'max-h-64 overflow-y-auto' : ''}`} style={familyForm.members.length > 2 ? { scrollbarWidth: 'thin' } : {}}>
+                {familyForm.members.map((member, index) => (
+                  <div key={index} className="p-2 bg-slate-50 dark:bg-zinc-900/30 rounded-lg border border-slate-200/50 dark:border-zinc-700/30">
+                    {/* Mobile layout: number | 2x2 grid | X */}
+                    <div className="md:hidden flex items-center gap-1">
+                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 w-5 text-center flex-shrink-0">{index + 1}</span>
+                      <div className="flex-1 min-w-0 grid grid-cols-2 gap-x-2 gap-y-1.5">
+                      <input type="text" value={member.name}
+                        onChange={(e) => updateFamilyMember(index, 'name', e.target.value)}
+                        placeholder={index === 0 ? "e.g., Mr. Khan" : index === 1 ? "e.g., Mrs. Khan" : `Member ${index + 1}`}
+                        className="h-9 px-2 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-md outline-none text-xs font-medium text-slate-800 dark:text-white placeholder:text-slate-400 focus:border-blue-400"
+                      />
+                      <CustomSelect
+                        value={member.role}
+                        onChange={(val) => updateFamilyMember(index, 'role', val)}
+                        options={GUEST_ROLES.map(role => ({ value: role.value, label: `${role.icon} ${role.shortLabel}` }))}
+                        triggerClassName="!h-9 !px-1.5 !text-[11px] !rounded-md bg-white dark:bg-zinc-900/50"
+                      />
+                      <div className="flex rounded-md overflow-hidden border border-slate-200 dark:border-zinc-600">
+                        {(['male', 'female'] as const).map(gender => (
+                          <button key={gender} onClick={() => updateFamilyMember(index, 'gender', gender)}
+                            className={`flex-1 h-9 text-[11px] font-semibold transition-colors ${
+                              member.gender === gender
+                                ? gender === 'male' ? 'bg-blue-500 text-white' : 'bg-pink-500 text-white'
+                                : 'bg-white dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                            }`}>
+                            {gender === 'male' ? 'Male' : 'Female'}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex rounded-md overflow-hidden border border-slate-200 dark:border-zinc-600">
+                        {(['adult', 'child'] as const).map(type => (
+                          <button key={type} onClick={() => updateFamilyMember(index, 'type', type)}
+                            className={`flex-1 h-9 text-[11px] font-semibold transition-colors ${
+                              member.type === type
+                                ? type === 'adult' ? 'bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-800' : 'bg-amber-500 text-white'
+                                : 'bg-white dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                            }`}>
+                            {type === 'adult' ? 'Adult' : 'Child'}
+                          </button>
+                        ))}
+                      </div>
+                      </div>
+                      {familyForm.members.length > 1 ? (
+                        <button onClick={() => removeFamilyMember(index)}
+                          className="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-red-500 rounded transition-colors flex-shrink-0">
+                          <X className="w-3 h-3" />
+                        </button>
+                      ) : <span className="w-5 flex-shrink-0" />}
+                    </div>
+
+                    {/* Desktop layout: single row */}
+                    <div className="hidden md:flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 w-4 text-center flex-shrink-0">{index + 1}</span>
+                      <input type="text" value={member.name}
+                        onChange={(e) => updateFamilyMember(index, 'name', e.target.value)}
+                        placeholder={index === 0 ? "e.g., Mr. Khan" : index === 1 ? "e.g., Mrs. Khan" : `Member ${index + 1}`}
+                        className="flex-1 min-w-0 h-9 px-2 bg-white dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-md outline-none text-xs font-medium text-slate-800 dark:text-white placeholder:text-slate-400 focus:border-blue-400"
+                      />
+                      <CustomSelect
+                        value={member.role}
+                        onChange={(val) => updateFamilyMember(index, 'role', val)}
+                        options={GUEST_ROLES.map(role => ({ value: role.value, label: `${role.icon} ${role.shortLabel}` }))}
+                        className="w-32 flex-shrink-0"
+                        triggerClassName="!h-9 !px-1.5 !text-[11px] !rounded-md bg-white dark:bg-zinc-900/50"
+                      />
+                      <div className="inline-flex h-9 rounded-md overflow-hidden border border-slate-200 dark:border-zinc-600">
+                        {(['male', 'female'] as const).map(gender => (
+                          <button key={gender} onClick={() => updateFamilyMember(index, 'gender', gender)}
+                            className={`px-2.5 h-full text-[11px] font-semibold transition-colors ${
+                              member.gender === gender
+                                ? gender === 'male' ? 'bg-blue-500 text-white' : 'bg-pink-500 text-white'
+                                : 'bg-white dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                            }`}>
+                            {gender === 'male' ? 'Male' : 'Female'}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="inline-flex h-9 rounded-md overflow-hidden border border-slate-200 dark:border-zinc-600">
+                        {(['adult', 'child'] as const).map(type => (
+                          <button key={type} onClick={() => updateFamilyMember(index, 'type', type)}
+                            className={`px-2.5 h-full text-[11px] font-semibold transition-colors ${
+                              member.type === type
+                                ? type === 'adult' ? 'bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-800' : 'bg-amber-500 text-white'
+                                : 'bg-white dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                            }`}>
+                            {type === 'adult' ? 'Adult' : 'Child'}
+                          </button>
+                        ))}
+                      </div>
+                      {familyForm.members.length > 1 ? (
+                        <button onClick={() => removeFamilyMember(index)}
+                          className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex-shrink-0">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      ) : <span className="w-7 flex-shrink-0" />}
+                    </div>
+                  </div>
+                ))}
+                {/* Ghost add member button */}
+                <button onClick={addFamilyMember}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-slate-300 dark:border-zinc-600 text-slate-400 dark:text-slate-500 hover:border-blue-400 hover:text-blue-500 dark:hover:border-blue-500 dark:hover:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all cursor-pointer relative z-10">
+                  <Plus className="w-3.5 h-3.5" />
+                  <span className="text-[11px] font-semibold">Add member</span>
+                </button>
+              </div>
+            </div>
+
+            <button onClick={handleAddFamily}
+              disabled={familyForm.members.every(m => !m.name.trim()) || familyForm.invitedTo.length === 0}
+              className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:dark:bg-slate-600 text-white font-bold text-sm rounded-xl transition-all disabled:cursor-not-allowed">
+              <Plus className="w-4 h-4" /> Add Group
+            </button>
+          </div>
+        )}
+      </div>
+      )}
+
+      {/* Search, Sort & Bulk Actions */}
+      {data.guests.length > 0 && (
+        <div className="mb-3 space-y-2">
+          {/* Search Bar */}
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search guests by name, group, phone..."
+              className="w-full pl-9 pr-8 py-2 text-sm bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-emerald-500 dark:focus:border-emerald-500 transition-colors"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Sort + Select All Row */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Sort:</span>
+              {(['name', 'rsvp', 'side'] as const).map(field => (
+                <button
+                  key={field}
+                  onClick={() => handleCycleSort(field)}
+                  className={`px-2 py-1 rounded text-[11px] font-semibold transition-all ${
+                    sortBy === field
+                      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
+                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 border border-transparent'
+                  }`}
+                >
+                  {field === 'rsvp' ? 'RSVP' : field.charAt(0).toUpperCase() + field.slice(1)}
+                  {sortBy === field && (sortDir === 'asc' ? ' ↑' : ' ↓')}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={toggleSelectAll}
+              className="text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors px-2 py-1"
+            >
+              {selectedGuests.size === filteredGuests.length && filteredGuests.length > 0 ? 'Deselect All' : 'Select All'}
+            </button>
+          </div>
+
+        </div>
+      )}
+
+      {/* Bulk Action Bar — sticky so it stays visible while scrolling the list */}
+      {selectedGuests.size > 0 && (
+        <div className="sticky top-0 z-20 mb-3">
+          <div className="p-2.5 bg-blue-50/95 dark:bg-blue-950/90 backdrop-blur-sm border border-blue-200 dark:border-blue-800 rounded-xl shadow-sm">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-bold text-blue-700 dark:text-blue-300 mr-0.5">
+                {selectedGuests.size} selected
+              </span>
+              <button onClick={() => handleBulkRsvp('confirmed')}
+                className="px-2.5 py-1.5 text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-md hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition-colors">
+                ✓ Confirm
+              </button>
+              <button onClick={() => handleBulkRsvp('declined')}
+                className="px-2.5 py-1.5 text-[11px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
+                ✗ Decline
+              </button>
+              <button onClick={() => handleBulkRsvp('pending')}
+                className="px-2.5 py-1.5 text-[11px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors">
+                ? Pending
+              </button>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="Table #"
+                className="w-16 px-2 py-1.5 text-[11px] bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-600 rounded-md text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (val) { handleBulkTableAssign(val); (e.target as HTMLInputElement).value = ''; }
+                  }
+                }}
+              />
+              <button onClick={() => setShowBulkDeleteConfirm(true)}
+                className="px-2.5 py-1.5 text-[11px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center gap-1">
+                <Trash className="w-3 h-3" /> Delete
+              </button>
+              <button onClick={() => setSelectedGuests(new Set())}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors ml-auto">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guest List */}
+      <div className="space-y-3">
+        {filteredGuests.length === 0 ? (
+          <div className="bg-white dark:bg-zinc-800 rounded-2xl border border-slate-200 dark:border-zinc-700 p-12 text-center">
+            <Users className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
+            <p className="text-slate-500 dark:text-slate-400 font-medium">
+              {data.guests.length === 0
+                ? 'No guests yet. Tap "Add Guest / Group" above to get started!'
+                : `No guests match the current filters`
+              }
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Grouped guests (Families) */}
+            {organizedGuests.grouped.map(({ group, members }) => {
+              const isExpanded = expandedGroups.has(group.id);
+              const isEditingThisGroup = editingGroupId === group.id;
+              return (
+                <div key={group.id} className="bg-white dark:bg-zinc-800 rounded-2xl border-2 border-violet-200 dark:border-violet-800/50 overflow-hidden">
+                  <div
+                    onClick={() => !isEditingThisGroup && toggleGroupExpanded(group.id)}
+                    className={`relative w-full px-4 py-2.5 bg-violet-50/50 dark:bg-violet-900/10 transition-colors ${!isEditingThisGroup ? 'hover:bg-violet-100/50 dark:hover:bg-violet-900/20 cursor-pointer' : ''}`}
+                  >
+                    {/* Action buttons - absolute top-right */}
+                    {!isEditingThisGroup && (
+                      <div className="absolute top-2.5 right-2 flex items-center gap-0.5 z-10">
+                        <button onClick={(e) => { e.stopPropagation(); startEditingGroup(group.id, group.name); }}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit group name">
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ type: 'group', id: group.id, name: group.name, memberCount: members.length }); }}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Delete group">
+                          <Trash className="w-4 h-4" />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); toggleGroupExpanded(group.id); }}
+                          className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg transition-colors" title={isExpanded ? "Collapse" : "Expand"}>
+                          <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-full bg-violet-700 border border-white/10 flex items-center justify-center text-xs font-bold text-violet-100 flex-shrink-0 mt-0.5">
+                        {getInitials(group.name)}
+                      </div>
+                      <div className="text-left flex-1 min-w-0">
+                        {isEditingThisGroup ? (
+                          <div className="flex items-center gap-2 pr-4">
+                            <input type="text" value={editGroupName}
+                              onChange={(e) => setEditGroupName(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') saveGroupName(); if (e.key === 'Escape') setEditingGroupId(null); }}
+                              onClick={(e) => e.stopPropagation()} autoFocus
+                              className="flex-1 px-2 py-1 bg-white dark:bg-zinc-900/50 border-2 border-blue-400 rounded-lg outline-none font-bold text-slate-800 dark:text-white text-sm"
+                            />
+                            <button onClick={(e) => { e.stopPropagation(); saveGroupName(); }}
+                              className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"><Check className="w-4 h-4" /></button>
+                            <button onClick={(e) => { e.stopPropagation(); setEditingGroupId(null); }}
+                              className="p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"><X className="w-4 h-4" /></button>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Name + table badge - inline */}
+                            <div className="flex items-center gap-2 flex-wrap pr-20 sm:pr-24">
+                              <p className="font-bold text-sm text-slate-800 dark:text-white">{group.name}</p>
+                              {isExpanded ? (
+                                <div className="inline-flex items-center gap-1 bg-slate-200/70 dark:bg-black/30 border border-slate-300 dark:border-white/10 rounded-md px-2 py-0.5 focus-within:border-emerald-500 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}>
+                                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Table</span>
+                                  <input
+                                    type="text" inputMode="numeric" pattern="[0-9]*" value={group.tableNumber || ''} placeholder="#"
+                                    onChange={(e) => handleGroupTableNumber(group.id, e.target.value.replace(/[^0-9]/g, ''))}
+                                    className="w-8 bg-transparent text-xs font-bold text-slate-700 dark:text-slate-200 outline-none text-center placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                  />
+                                </div>
+                              ) : group.tableNumber ? (
+                                <span className="text-[11px] uppercase tracking-wide bg-slate-100 dark:bg-zinc-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded font-bold">
+                                  Table {group.tableNumber}
+                                </span>
+                              ) : null}
+                            </div>
+                            {/* Member count */}
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                              {members.length} {members.length === 1 ? 'member' : 'members'} • {members.filter(m => m.type === 'adult').length} {members.filter(m => m.type === 'adult').length === 1 ? 'adult' : 'adults'}, {members.filter(m => m.type === 'child').length} {members.filter(m => m.type === 'child').length === 1 ? 'kid' : 'kids'}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <>
+                      <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {members.map(guest => (
+                          <GuestRow
+                            key={guest.id} guest={guest} enabledEvents={enabledEvents} groups={data.groups}
+                            onEdit={() => setEditingGuest(guest)}
+                            onDelete={() => setDeleteConfirm({ type: 'guest', id: guest.id, name: guest.name })}
+                            isEditing={editingGuest?.id === guest.id} editingGuest={editingGuest}
+                            onSave={handleUpdateGuest} onCancelEdit={() => handleCancelEdit(guest.id)}
+                            onCycleRsvp={handleCycleRsvp}
+                            moveMenuGuestId={moveMenuGuestId} setMoveMenuGuestId={setMoveMenuGuestId}
+                            onMoveGuest={handleMoveGuest} moveMenuRef={moveMenuRef}
+                            isSelected={selectedGuests.has(guest.id)}
+                            onToggleSelect={toggleGuestSelection}
+                          />
+                        ))}
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); handleAddMemberToFamily(group.id); }}
+                        className="relative z-10 w-full py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 border-t border-dashed border-violet-200 dark:border-violet-800/50 transition-colors cursor-pointer">
+                        <Plus className="w-4 h-4" /> Add new member
+                      </button>
+                      {/* Bottom collapse button for long groups */}
+                      {members.length > 3 && (
+                        <button onClick={(e) => { e.stopPropagation(); toggleGroupExpanded(group.id); }}
+                          className="w-full py-1.5 flex items-center justify-center gap-1 text-[11px] font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/30 border-t border-slate-100 dark:border-zinc-700/50 transition-colors">
+                          <ChevronDown className="w-3.5 h-3.5 rotate-180" />
+                          Collapse
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Ungrouped guests */}
+            {organizedGuests.ungrouped.length > 0 && (
+              <div className="bg-white dark:bg-zinc-800 rounded-2xl border border-slate-200 dark:border-zinc-600 overflow-hidden">
+                <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                  {organizedGuests.ungrouped.map(guest => (
+                    <GuestRow
+                      key={guest.id} guest={guest} enabledEvents={enabledEvents} groups={data.groups}
+                      onEdit={() => setEditingGuest(guest)}
+                      onDelete={() => setDeleteConfirm({ type: 'guest', id: guest.id, name: guest.name })}
+                      isEditing={editingGuest?.id === guest.id} editingGuest={editingGuest}
+                      onSave={handleUpdateGuest} onCancelEdit={() => handleCancelEdit(guest.id)}
+                      onCycleRsvp={handleCycleRsvp}
+                      moveMenuGuestId={moveMenuGuestId} setMoveMenuGuestId={setMoveMenuGuestId}
+                      onMoveGuest={handleMoveGuest} moveMenuRef={moveMenuRef}
+                      isSelected={selectedGuests.has(guest.id)}
+                      onToggleSelect={toggleGuestSelection}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Settings Modal */}
+      <EventSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        events={data.events}
+        onToggleEvent={toggleEventEnabled}
+        onAddCustomEvent={handleAddCustomEvent}
+        onDeleteCustomEvent={handleDeleteCustomEvent}
+        showSegregation={true}
+        segregationMode={data.segregationMode}
+        onToggleSegregation={toggleSegregationMode}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setDeleteConfirm(null)}>
+          <div className="bg-white dark:bg-zinc-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <Trash className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Delete {deleteConfirm.type === 'group' ? 'Group' : 'Guest'}?</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">This cannot be undone</p>
+              </div>
+            </div>
+            <div className="mb-6 p-3 bg-slate-50 dark:bg-zinc-900/50 rounded-xl border border-slate-200 dark:border-zinc-700">
+              <p className="font-semibold text-slate-800 dark:text-white">{deleteConfirm.name}</p>
+              {deleteConfirm.type === 'group' && deleteConfirm.memberCount && (
+                <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                  This will delete {deleteConfirm.memberCount} member{deleteConfirm.memberCount > 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-2.5 px-4 bg-slate-100 dark:bg-zinc-700 text-slate-700 dark:text-slate-300 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => {
+                if (deleteConfirm.type === 'group') handleDeleteGroup(deleteConfirm.id);
+                else handleDeleteGuest(deleteConfirm.id);
+                setDeleteConfirm(null);
+              }}
+                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-colors">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowBulkDeleteConfirm(false)}>
+          <div className="bg-white dark:bg-zinc-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <Trash className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Delete {selectedGuests.size} Guest{selectedGuests.size > 1 ? 's' : ''}?</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">This cannot be undone</p>
+              </div>
+            </div>
+            <div className="mb-6 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800/50">
+              <p className="text-sm text-red-700 dark:text-red-300">
+                You are about to permanently delete <span className="font-bold">{selectedGuests.size}</span> selected guest{selectedGuests.size > 1 ? 's' : ''} from your list. Any associated RSVP, seating, and notes data will be lost.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowBulkDeleteConfirm(false)}
+                className="flex-1 py-2.5 px-4 bg-slate-100 dark:bg-zinc-700 text-slate-700 dark:text-slate-300 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => {
+                handleBulkDelete();
+                setShowBulkDeleteConfirm(false);
+              }}
+                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-colors">
+                Delete {selectedGuests.size}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import CSV Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => { setShowImportModal(false); setImportPreview(null); setImportError(null); }}>
+          <div className="bg-white dark:bg-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Import Guests</h3>
+              <button onClick={() => { setShowImportModal(false); setImportPreview(null); setImportError(null); }}
+                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full">
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            {!importPreview ? (
+              <>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                  Import guests from a CSV file. Download our template for the correct format.
+                </p>
+                <div className="space-y-3">
+                  <button onClick={handleDownloadTemplate}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                    <DownloadIcon className="w-4 h-4" /> Download CSV Template
+                  </button>
+                  <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
+                  <button onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors">
+                    <UploadIcon className="w-4 h-4" /> Upload CSV File
+                  </button>
+                </div>
+                {importError && (
+                  <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                    <p className="text-sm text-red-700 dark:text-red-400">{importError}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
+                  <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                    Found {importPreview.guests.length} guests{importPreview.groups.length > 0 ? ` in ${importPreview.groups.length} groups` : ''}
+                  </p>
+                </div>
+                {importPreview.duplicates.length > 0 && (
+                  <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                      ⚠️ {importPreview.duplicates.length} duplicate{importPreview.duplicates.length !== 1 ? 's' : ''} found (already in guest list)
+                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                      {importPreview.duplicates.slice(0, 5).join(', ')}{importPreview.duplicates.length > 5 ? ` and ${importPreview.duplicates.length - 5} more` : ''}
+                    </p>
+                  </div>
+                )}
+                <div className="max-h-60 overflow-y-auto mb-4 space-y-1">
+                  {importPreview.guests.map((g, i) => {
+                    const isDuplicate = g.name ? importPreview.duplicates.some(d => d.toLowerCase() === g.name!.toLowerCase()) : false;
+                    return (
+                      <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${isDuplicate ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800' : 'bg-slate-50 dark:bg-zinc-900/30'}`}>
+                        <span className="text-xs text-slate-400 w-4">{i + 1}</span>
+                        <span className="font-medium text-slate-800 dark:text-white flex-1">{g.name}</span>
+                        {isDuplicate && <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">Duplicate</span>}
+                        <span className="text-xs text-slate-400">{g.side}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => { setImportPreview(null); setImportError(null); }}
+                    className="flex-1 py-2.5 px-4 bg-slate-100 dark:bg-zinc-700 text-slate-700 dark:text-slate-300 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={handleConfirmImport}
+                    className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors">
+                    Import {importPreview.guests.length} Guests
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-[60] w-[340px] max-w-[calc(100vw-2rem)]">
+          <div className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-xl border backdrop-blur-sm transition-all duration-200 ${
+            toast.type === 'error'
+              ? 'bg-white dark:bg-zinc-800 border-red-200 dark:border-red-800/50'
+              : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700'
+          }`}>
+            <div className={`flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center ${
+              toast.type === 'error' ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'
+              : toast.type === 'success' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'
+              : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
+            }`}>
+              {toast.type === 'error' ? (
+                <X className="w-3 h-3" />
+              ) : toast.type === 'success' ? (
+                <Check className="w-3 h-3" />
+              ) : (
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-800 dark:text-white">{toast.title}</p>
+              {toast.description && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{toast.description}</p>}
+            </div>
+            <button onClick={() => setToast(null)} className="flex-shrink-0 mt-0.5 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded transition-colors">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================
+// GUEST ROW SUB-COMPONENT
+// ============================================================
+
+interface GuestRowProps {
+  guest: Guest;
+  enabledEvents: WeddingEventConfig[];
+  groups: GuestGroup[];
+  onEdit: () => void;
+  onDelete: () => void;
+  isEditing: boolean;
+  editingGuest: Guest | null;
+  onSave: (guest: Guest) => void;
+  onCancelEdit: () => void;
+  onCycleRsvp: (guestId: string) => void;
+  moveMenuGuestId: string | null;
+  setMoveMenuGuestId: (id: string | null) => void;
+  onMoveGuest: (guestId: string, targetGroupId: string | null) => void;
+  moveMenuRef: React.RefObject<HTMLDivElement | null>;
+  isSelected?: boolean;
+  onToggleSelect?: (guestId: string) => void;
+}
+
+const GuestRow: React.FC<GuestRowProps> = ({
+  guest, enabledEvents, groups, onEdit, onDelete, isEditing, editingGuest,
+  onSave, onCancelEdit, onCycleRsvp,
+  moveMenuGuestId, setMoveMenuGuestId, onMoveGuest, moveMenuRef,
+  isSelected, onToggleSelect,
+}) => {
+  const [editForm, setEditForm] = useState(guest);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuLocalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isEditing && editingGuest) setEditForm(editingGuest);
+  }, [isEditing, editingGuest]);
+
+  // Close "..." menu on outside click
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (moreMenuLocalRef.current && !moreMenuLocalRef.current.contains(e.target as Node)) setMoreMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [moreMenuOpen]);
+
+  const toggleEvent = (eventId: string) => {
+    setEditForm(prev => ({
+      ...prev, invitedTo: prev.invitedTo.includes(eventId) ? prev.invitedTo.filter(e => e !== eventId) : [...prev.invitedTo, eventId]
+    }));
+  };
+
+  const getRoleInfo = (role: GuestRole) => GUEST_ROLES.find(r => r.value === role) || GUEST_ROLES[0];
+
+  // RSVP badge colors
+  const rsvpConfig = {
+    pending: { bg: 'bg-slate-100 dark:bg-zinc-700', text: 'text-slate-500 dark:text-slate-400', label: 'Pending' },
+    confirmed: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', label: 'Confirmed' },
+    declined: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Declined' },
+  };
+
+  if (isEditing) {
+    const editAvatarColor = getAvatarColor(guest.name);
+    const editInitials = getInitials(guest.name);
+    return (
+      <div className="bg-blue-50/50 dark:bg-blue-900/10 border-l-2 border-blue-400">
+        {/* Identity header */}
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-blue-200/50 dark:border-blue-800/30">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 border border-white/10 ${editAvatarColor.bg} ${editAvatarColor.text}`}>
+              {editInitials}
+            </div>
+            <div>
+              <span className="font-semibold text-sm text-slate-800 dark:text-white">{guest.name}</span>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">Editing guest details</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button onClick={onCancelEdit}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 rounded-lg text-xs font-medium transition-colors">
+              <X className="w-3.5 h-3.5" /> Cancel
+            </button>
+            <button onClick={() => onSave(editForm)}
+              disabled={editForm.invitedTo.length === 0 || !editForm.name.trim()}
+              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg text-xs font-bold transition-colors">
+              <Check className="w-3.5 h-3.5" /> Save
+            </button>
+          </div>
+        </div>
+
+        <div className="px-3 sm:px-4 py-2.5 space-y-2">
+          {/* Row 1: Name + Role (2-col) */}
+          <div className="grid grid-cols-2 gap-x-4">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Name <span className="text-red-400">*</span></p>
+              <input type="text" value={editForm.name}
+                onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Guest name..."
+                className="w-full h-9 px-2.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 focus:border-blue-400 rounded-lg outline-none font-medium text-xs text-slate-800 dark:text-white placeholder:text-slate-400 transition-all"
+              />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Role</p>
+              <CustomSelect
+                value={editForm.role}
+                onChange={(val) => setEditForm(prev => ({ ...prev, role: val as GuestRole }))}
+                options={GUEST_ROLES.map(role => ({ value: role.value, label: `${role.icon} ${role.label}` }))}
+              />
+            </div>
+          </div>
+
+          {/* Row 2: Side + Gender + Type + Table (2-col mobile, 4-col desktop) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Side</p>
+              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-600">
+                {(['groom', 'bride', 'joint'] as const).map(side => (
+                  <button key={side} onClick={() => setEditForm(prev => ({ ...prev, side }))}
+                    className={`flex-1 h-9 text-xs font-semibold transition-colors ${
+                      editForm.side === side
+                        ? side === 'groom' ? 'bg-teal-500 text-white' : side === 'bride' ? 'bg-rose-500 text-white' : 'bg-violet-500 text-white'
+                        : 'bg-slate-50 dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                    }`}>
+                    {side === 'groom' ? 'Groom' : side === 'bride' ? 'Bride' : 'Joint'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Gender</p>
+              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-600">
+                {(['male', 'female'] as const).map(gender => (
+                  <button key={gender} onClick={() => setEditForm(prev => ({ ...prev, gender }))}
+                    className={`flex-1 h-9 text-xs font-semibold transition-colors ${
+                      editForm.gender === gender
+                        ? gender === 'male' ? 'bg-blue-500 text-white' : 'bg-pink-500 text-white'
+                        : 'bg-slate-50 dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                    }`}>
+                    {gender === 'male' ? 'Male' : 'Female'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Type</p>
+              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-600">
+                {(['adult', 'child'] as const).map(type => (
+                  <button key={type} onClick={() => setEditForm(prev => ({ ...prev, type }))}
+                    className={`flex-1 h-9 text-xs font-semibold transition-colors ${
+                      editForm.type === type
+                        ? type === 'adult' ? 'bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-800' : 'bg-amber-500 text-white'
+                        : 'bg-slate-50 dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                    }`}>
+                    {type === 'adult' ? 'Adult' : 'Child'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Table #</p>
+              <input type="text" inputMode="numeric" pattern="[0-9]*" value={editForm.tableNumber || ''} placeholder="—"
+                onChange={(e) => setEditForm(prev => ({ ...prev, tableNumber: e.target.value.replace(/[^0-9]/g, '') || undefined }))}
+                className="w-full h-9 px-2.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 text-center placeholder:text-slate-400"
+              />
+            </div>
+          </div>
+
+          {/* Row 3: RSVP + Phone (2-col) */}
+          <div className="grid grid-cols-2 gap-x-3">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">RSVP</p>
+              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-600">
+                {(['pending', 'confirmed', 'declined'] as const).map(status => (
+                  <button key={status} onClick={() => setEditForm(prev => ({ ...prev, rsvpStatus: status }))}
+                    className={`flex-1 h-9 text-sm font-semibold transition-colors ${
+                      editForm.rsvpStatus === status
+                        ? status === 'confirmed' ? 'bg-emerald-500 text-white' : status === 'declined' ? 'bg-red-500 text-white' : 'bg-slate-600 text-white'
+                        : 'bg-slate-50 dark:bg-zinc-900/50 text-slate-500 dark:text-slate-400'
+                    }`}>
+                    {status === 'pending' ? '?' : status === 'confirmed' ? '✓' : '✗'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Phone</p>
+              <input type="tel" value={editForm.phone || ''} placeholder="Optional..."
+                onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value || undefined }))}
+                className="w-full h-9 px-2.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 placeholder:text-slate-400"
+              />
+            </div>
+          </div>
+
+          {/* Row 4: Notes (full width, auto-expanding textarea) */}
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Notes</p>
+            <textarea
+              ref={(el) => {
+                if (!el) return;
+                const adjustHeight = () => {
+                  el.style.height = 'auto';
+                  el.style.height = Math.max(32, el.scrollHeight) + 'px';
+                };
+                adjustHeight();
+                if (!el.dataset.hasObserver) {
+                  el.dataset.hasObserver = 'true';
+                  const ro = new ResizeObserver(() => adjustHeight());
+                  ro.observe(el);
+                }
+              }}
+              value={editForm.notes || ''} placeholder="Optional notes..."
+              onChange={(e) => {
+                setEditForm(prev => ({ ...prev, notes: e.target.value || undefined }));
+                e.target.style.height = 'auto';
+                e.target.style.height = e.target.scrollHeight + 'px';
+              }}
+              rows={1}
+              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-600 rounded-lg text-xs font-medium text-slate-800 dark:text-white outline-none focus:border-blue-400 placeholder:text-slate-400 resize-none overflow-hidden"
+              style={{ minHeight: '32px' }}
+            />
+          </div>
+
+          {/* Events - collapsible */}
+          <div>
+            <div className="flex items-center justify-between py-1">
+              <button
+                onClick={() => setEditForm(prev => ({ ...prev, _eventsExpanded: !prev._eventsExpanded } as any))}
+                className="flex items-center gap-1.5 py-1"
+              >
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Invite to</p>
+                <span className="text-xs font-medium text-blue-500 dark:text-blue-400">
+                  {editForm.invitedTo.length}/{enabledEvents.length} events
+                </span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${(editForm as any)._eventsExpanded ? 'rotate-180' : ''}`} />
+              </button>
+              {(editForm as any)._eventsExpanded && (
+                <button
+                  onClick={() => {
+                    const allSelected = editForm.invitedTo.length === enabledEvents.length;
+                    setEditForm(prev => ({ ...prev, invitedTo: allSelected ? [] : enabledEvents.map(e => e.id) }));
+                  }}
+                  className="text-xs font-medium text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 px-2 py-1"
+                >
+                  {editForm.invitedTo.length === enabledEvents.length ? 'Clear all' : 'Select all'}
+                </button>
+              )}
+            </div>
+            {(editForm as any)._eventsExpanded && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {enabledEvents.map(event => (
+                  <button key={event.id} onClick={() => toggleEvent(event.id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      editForm.invitedTo.includes(event.id)
+                        ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-400'
+                        : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-slate-400 border border-transparent'
+                    }`}>
+                    {event.name}
+                    {editForm.invitedTo.includes(event.id) && <Check className="w-3 h-3" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  const roleInfo = getRoleInfo(guest.role);
+  const invitedEvents = enabledEvents.filter(event => guest.invitedTo.includes(event.id));
+  const rsvp = rsvpConfig[guest.rsvpStatus];
+  const showMoveMenu = moveMenuGuestId === guest.id;
+  const availableGroups = groups.filter(g => g.id !== guest.groupId);
+
+  const avatarColor = getAvatarColor(guest.name);
+  const initials = getInitials(guest.name);
+
+  const RoleBadge = guest.role !== 'guest' ? (
+    <span className="text-[11px] uppercase tracking-wide bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">
+      {roleInfo.icon} {roleInfo.shortLabel}
+    </span>
+  ) : null;
+
+  const SideBadge = (
+    <span className={`text-[11px] uppercase tracking-wide px-1.5 py-0.5 rounded font-bold whitespace-nowrap ${
+      guest.side === 'groom' ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400'
+        : guest.side === 'bride' ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400'
+        : 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400'
+    }`}>
+      {guest.side === 'groom' ? 'Groom' : guest.side === 'bride' ? 'Bride' : 'Joint'}
+    </span>
+  );
+
+  const RsvpIndicator = (
+    <button onClick={() => onCycleRsvp(guest.id)} title="Click to change RSVP"
+      className={`text-[11px] uppercase tracking-wide px-1.5 py-0.5 rounded font-bold transition-colors cursor-pointer hover:opacity-80 whitespace-nowrap ${rsvp.bg} ${rsvp.text}`}>
+      {guest.rsvpStatus === 'confirmed' ? '✓ ' : guest.rsvpStatus === 'declined' ? '✗ ' : ''}{rsvp.label}
+    </button>
+  );
+
+  // RSVP status dot color for avatar indicator
+  const rsvpDotColor = guest.rsvpStatus === 'confirmed' ? 'bg-emerald-500 ring-emerald-500/30'
+    : guest.rsvpStatus === 'declined' ? 'bg-red-500 ring-red-500/30'
+    : 'bg-slate-400 dark:bg-slate-500 ring-slate-400/30';
+
+  return (
+    <div className={`relative px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group/row ${moreMenuOpen || showMoveMenu ? 'z-30' : ''} ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+      {/* Action buttons - absolute top-right */}
+      <div className="absolute top-2.5 right-2 flex items-center gap-0.5 z-10">
+        {/* RSVP text badge - desktop only */}
+        <div className="hidden sm:block mr-1">
+          {RsvpIndicator}
+        </div>
+        <button onClick={onEdit}
+          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors" title="Edit">
+          <Edit className="w-4 h-4" />
+        </button>
+        <div className="relative" ref={moreMenuLocalRef}>
+          <button onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="More options">
+            <MoreVertical className="w-4 h-4" />
+          </button>
+          {moreMenuOpen && (
+            <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-slate-200 dark:border-zinc-700 z-30 py-1 overflow-hidden">
+              <button onClick={() => { setMoreMenuOpen(false); setMoveMenuGuestId(showMoveMenu ? null : guest.id); }}
+                className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2">
+                <MoveIcon className="w-3.5 h-3.5" /> Move to group
+              </button>
+              <div className="border-t border-slate-100 dark:border-zinc-700 my-0.5" />
+              <button onClick={() => { setMoreMenuOpen(false); onDelete(); }}
+                className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2">
+                <Trash className="w-3.5 h-3.5" /> Delete guest
+              </button>
+            </div>
+          )}
+        </div>
+        {showMoveMenu && (
+          <div ref={moveMenuRef}
+            className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-slate-200 dark:border-zinc-700 z-30 py-1 max-h-48 overflow-y-auto">
+            {guest.groupId && (
+              <button onClick={() => onMoveGuest(guest.id, null)}
+                className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                Remove from group
+              </button>
+            )}
+            {availableGroups.length > 0 && guest.groupId && <div className="border-t border-slate-100 dark:border-zinc-700 my-1" />}
+            {availableGroups.map(group => (
+              <button key={group.id} onClick={() => onMoveGuest(guest.id, group.id)}
+                className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors truncate">
+                Move to {group.name}
+              </button>
+            ))}
+            {availableGroups.length === 0 && !guest.groupId && (
+              <p className="px-3 py-2 text-xs text-slate-400 italic">No groups to move to</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Main content row */}
+      <div className="flex items-start gap-2.5">
+        {/* Selection checkbox — always visible, inline */}
+        {onToggleSelect && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleSelect(guest.id); }}
+            className="w-5 h-5 flex items-center justify-center flex-shrink-0 mt-2"
+            title={isSelected ? 'Deselect' : 'Select'}
+          >
+            <span className={`w-[18px] h-[18px] rounded border-2 flex items-center justify-center text-[10px] font-bold transition-all ${
+              isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-zinc-600 hover:border-blue-400'
+            }`}>
+              {isSelected && '✓'}
+            </span>
+          </button>
+        )}
+        {/* Initials Avatar with RSVP status dot */}
+        <button onClick={() => onCycleRsvp(guest.id)} title={`RSVP: ${rsvp.label} — Click to change`}
+          className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 relative border border-white/10 cursor-pointer hover:opacity-90 transition-opacity mt-0.5 ${avatarColor.bg} ${avatarColor.text}`}>
+          {initials}
+          <span className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-zinc-800 ring-2 ${rsvpDotColor}`} />
+          {guest.type === 'child' && (
+            <span className="absolute -bottom-0.5 -left-0.5 w-3.5 h-3.5 bg-amber-400 rounded-full flex items-center justify-center text-[8px] border border-white dark:border-zinc-800 font-bold text-amber-900">
+              C
+            </span>
+          )}
+        </button>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {/* Name + badges - same row, wraps naturally */}
+          <div className="flex items-center gap-1.5 flex-wrap pr-14 sm:pr-28">
+            <span className="font-semibold text-sm text-slate-800 dark:text-white truncate max-w-[160px] sm:max-w-none">{guest.name}</span>
+            {RoleBadge}
+            {SideBadge}
+            {guest.tableNumber && (
+              <span className="text-[11px] uppercase tracking-wide bg-slate-100 dark:bg-zinc-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded font-bold">
+                Table {guest.tableNumber}
+              </span>
+            )}
+          </div>
+
+          {/* Events row */}
+          {invitedEvents.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-1">
+              {invitedEvents.slice(0, 3).map(event => (
+                <span key={event.id} className="inline-flex items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                    event.id === 'nikkah' ? 'bg-emerald-500' : event.id === 'walima' ? 'bg-blue-500' : 'bg-slate-400 dark:bg-slate-500'
+                  }`} />
+                  {event.name}
+                </span>
+              ))}
+              {invitedEvents.length > 3 && (
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium bg-slate-100 dark:bg-zinc-700 px-1.5 py-px rounded">
+                  +{invitedEvents.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
